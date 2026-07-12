@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Moon, Save, Sun, Shield } from "lucide-react";
+import { Moon, Save, Sun } from "lucide-react";
 import { useTransitData } from "../../app/transit-data";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
@@ -14,9 +14,7 @@ export function SettingsPage() {
     setTheme, 
     pushToast, 
     settings, 
-    rbacMatrix, 
     updateSettings, 
-    updateRBACMatrix, 
     setSessionRole 
   } = useTransitData();
 
@@ -38,15 +36,6 @@ export function SettingsPage() {
 
   const rolesList = ["Operations Lead", "Fleet Manager", "Dispatcher", "Safety Officer", "Financial Analyst"];
   
-  const pagesList = [
-    { key: "fleet", label: "Fleet Registry" },
-    { key: "drivers", label: "Drivers & Safety" },
-    { key: "trips", label: "Trips (Dispatch)" },
-    { key: "maintenance", label: "Maintenance" },
-    { key: "fuelExpenses", label: "Fuel & Expenses" },
-    { key: "analytics", label: "Reports & Analytics" }
-  ];
-
   function handleProfileSave() {
     pushToast({
       title: "Profile saved.",
@@ -67,7 +56,7 @@ export function SettingsPage() {
         </p>
         <h1 className="text-[28px] font-bold text-[var(--text)]">Settings</h1>
         <p className="text-[14px] text-[var(--text-2)]">
-          Profile details, notification preferences, depot controls, and RBAC matrix.
+          Profile details, notification preferences, and depot controls.
         </p>
       </div>
 
@@ -98,7 +87,7 @@ export function SettingsPage() {
                 onChange={(event) => setSessionRole(event.target.value)}
               >
                 {rolesList.map((role) => (
-                  <option key={role} value={role}>
+                   <option key={role} value={role}>
                     {role}
                   </option>
                 ))}
@@ -161,59 +150,6 @@ export function SettingsPage() {
         </Card>
       </div>
 
-      {/* RBAC Matrix Card */}
-      <Card 
-        title="Role-Based Access Control (RBAC)" 
-        subtitle="Manage permission levels across roles (Changes apply in real-time)"
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-[var(--border)]">
-                <th className="py-3 px-4 text-[12px] uppercase font-semibold text-[var(--muted)]">Role</th>
-                {pagesList.map((page) => (
-                  <th key={page.key} className="py-3 px-4 text-[12px] uppercase font-semibold text-[var(--muted)] text-center">
-                    {page.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rolesList.map((role) => (
-                <tr 
-                  key={role} 
-                  className={`border-b border-[var(--border)] transition hover:bg-[var(--surface-2)] ${
-                    session?.role === role ? "bg-[var(--surface-2)] font-semibold" : ""
-                  }`}
-                >
-                  <td className="py-4 px-4 text-[14px] text-[var(--text)]">
-                    <div className="flex items-center gap-2">
-                      {session?.role === role && <Shield className="h-4 w-4 text-emerald-500" />}
-                      {role}
-                    </div>
-                  </td>
-                  {pagesList.map((page) => {
-                    const currentAccess = rbacMatrix[role]?.[page.key] || "none";
-                    return (
-                      <td key={page.key} className="py-4 px-4 text-center">
-                        <select
-                          className="bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] rounded px-2 py-1 text-[13px] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                          value={currentAccess}
-                          onChange={(e) => updateRBACMatrix(role, page.key, e.target.value)}
-                        >
-                          <option value="full">Full Access</option>
-                          <option value="view">Read Only</option>
-                          <option value="none">No Access</option>
-                        </select>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
 
       {/* Preferences Card */}
       <Card title="Preferences" subtitle="Control delivery alerts">
