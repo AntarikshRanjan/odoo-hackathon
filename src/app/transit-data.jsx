@@ -300,6 +300,79 @@ export function TransitDataProvider({ children }) {
     });
   }
 
+  async function dispatchTrip(payload) {
+    return createTrip({ ...payload, status: "Dispatched" });
+  }
+
+  async function completeTrip(tripId, data) {
+    const trip = trips.find((item) => item.id === tripId);
+    if (!trip) return;
+
+    if (data.fuelUsed) {
+      const fuelCost = Number(data.fuelUsed) * 1.5; // Mock fuel cost
+      await addFuelLog({
+        date: new Date().toISOString().split("T")[0],
+        vehicleId: trip.vehicleId,
+        liters: Number(data.fuelUsed),
+        amount: fuelCost,
+        odometer: Number(data.finalOdometer) || 0,
+      });
+
+      await addExpense({
+        category: "Fuel",
+        amount: fuelCost,
+        vehicleId: trip.vehicleId,
+        tripId: tripId,
+      });
+    }
+
+    await updateTripStatus(tripId, "Completed");
+  }
+
+  async function cancelTrip(tripId) {
+    return updateTripStatus(tripId, "Cancelled");
+  }
+
+  function getAvailableVehicles() {
+    return vehicles.filter(
+      (v) => v.status === "Available" && !["In Shop", "Retired"].includes(v.status),
+    );
+  }
+
+  function getAvailableDrivers() {
+    return drivers.filter((d) => {
+      const validLicense = new Date(d.licenseExpiry) >= new Date();
+      return d.status === "Available" && validLicense && d.status !== "Suspended";
+    });
+  }
+
+  function validateTrip(form) {
+    const vehicle = vehicles.find((v) => v.id === form.vehicleId);
+    const driver = drivers.find((d) => d.id === form.driverId);
+    
+    const isVehicleValid = vehicle?.status === "Available" && !["In Shop", "Retired"].includes(vehicle.status);
+    const validLicense = driver ? new Date(driver.licenseExpiry) >= new Date() : false;
+    const isDriverValid = driver?.status === "Available" && validLicense && driver?.status !== "Suspended";
+    const capacityExceeded = vehicle && Number(form.cargoWeightKg) > vehicle.capacityKg;
+    
+    return {
+      isValid: form.vehicleId && form.driverId && isVehicleValid && isDriverValid && !capacityExceeded,
+      vehicle,
+      driver,
+      capacityExceeded,
+    };
+  }
+
+  function calculateFuelEfficiency(trip) {
+    // Return mock string for KPI
+    return "8.2 km/L"; 
+  }
+
+  function calculateOperationalCost(tripId) {
+    const tripExpenses = expenses.filter(e => e.tripId === tripId);
+    return tripExpenses.reduce((sum, item) => sum + item.amount, 0);
+  }
+
   async function logMaintenance(payload) {
     const vehicle = vehicles.find((item) => item.id === payload.vehicleId);
     if (!vehicle) {
@@ -525,6 +598,14 @@ export function TransitDataProvider({ children }) {
     setSessionRole,
     pushToast,
     stats,
+    dispatchTrip,
+    completeTrip,
+    cancelTrip,
+    getAvailableVehicles,
+    getAvailableDrivers,
+    validateTrip,
+    calculateFuelEfficiency,
+    calculateOperationalCost,
   };
 
   return (
