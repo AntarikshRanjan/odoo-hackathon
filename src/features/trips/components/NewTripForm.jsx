@@ -57,17 +57,6 @@ export function NewTripForm({ onSuccess }) {
     }
   }
 
-  function Field({ label, children }) {
-    return (
-      <div className="space-y-2">
-        <label className="text-[12px] font-medium uppercase tracking-[0.08em] text-[var(--muted)]">
-          {label}
-        </label>
-        {children}
-      </div>
-    );
-  }
-
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
       <Card className="p-6">
@@ -188,6 +177,17 @@ export function NewTripForm({ onSuccess }) {
       <div className="h-full">
         <ValidationSummary validation={validation} cargoWeightKg={form.cargoWeightKg} />
       </div>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div className="space-y-2">
+      <label className="text-[12px] font-medium uppercase tracking-[0.08em] text-[var(--muted)]">
+        {label}
+      </label>
+      {children}
     </div>
   );
 }

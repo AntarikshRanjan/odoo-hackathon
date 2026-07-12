@@ -5,14 +5,15 @@ import {
   useState,
 } from "react";
 import { formatCurrency } from "../lib/utils";
-const expenseTrend = [
-  { name: "Jan", cost: 12000 },
-  { name: "Feb", cost: 14500 },
-  { name: "Mar", cost: 13200 },
-  { name: "Apr", cost: 16800 },
-  { name: "May", cost: 15400 },
-  { name: "Jun", cost: 17100 },
-];
+import {
+  expenseTrend,
+  initialDrivers,
+  initialExpenses,
+  initialFuelLogs,
+  initialMaintenance,
+  initialTrips,
+  initialVehicles,
+} from "../data/mock-data";
 
 const TransitDataContext = createContext(null);
 
@@ -29,12 +30,30 @@ export function TransitDataProvider({ children }) {
     () => window.localStorage.getItem("transitops-theme") || "dark",
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [vehicles, setVehicles] = useState([]);
-  const [drivers, setDrivers] = useState([]);
-  const [trips, setTrips] = useState([]);
-  const [maintenance, setMaintenance] = useState([]);
-  const [fuelLogs, setFuelLogs] = useState([]);
-  const [expenses, setExpenses] = useState([]);
+  const [vehicles, setVehicles] = useState(() => {
+    const raw = window.localStorage.getItem("transitops-vehicles");
+    return raw ? JSON.parse(raw) : initialVehicles;
+  });
+  const [drivers, setDrivers] = useState(() => {
+    const raw = window.localStorage.getItem("transitops-drivers");
+    return raw ? JSON.parse(raw) : initialDrivers;
+  });
+  const [trips, setTrips] = useState(() => {
+    const raw = window.localStorage.getItem("transitops-trips");
+    return raw ? JSON.parse(raw) : initialTrips;
+  });
+  const [maintenance, setMaintenance] = useState(() => {
+    const raw = window.localStorage.getItem("transitops-maintenance");
+    return raw ? JSON.parse(raw) : initialMaintenance;
+  });
+  const [fuelLogs, setFuelLogs] = useState(() => {
+    const raw = window.localStorage.getItem("transitops-fuel-logs");
+    return raw ? JSON.parse(raw) : initialFuelLogs;
+  });
+  const [expenses, setExpenses] = useState(() => {
+    const raw = window.localStorage.getItem("transitops-expenses");
+    return raw ? JSON.parse(raw) : initialExpenses;
+  });
   const [toasts, setToasts] = useState([]);
   const [settings, setSettingsState] = useState(() => {
     const raw = window.localStorage.getItem("transitops-settings");
@@ -113,6 +132,30 @@ export function TransitDataProvider({ children }) {
       window.localStorage.removeItem("transitops-session");
     }
   }, [session]);
+
+  useEffect(() => {
+    window.localStorage.setItem("transitops-vehicles", JSON.stringify(vehicles));
+  }, [vehicles]);
+
+  useEffect(() => {
+    window.localStorage.setItem("transitops-drivers", JSON.stringify(drivers));
+  }, [drivers]);
+
+  useEffect(() => {
+    window.localStorage.setItem("transitops-trips", JSON.stringify(trips));
+  }, [trips]);
+
+  useEffect(() => {
+    window.localStorage.setItem("transitops-maintenance", JSON.stringify(maintenance));
+  }, [maintenance]);
+
+  useEffect(() => {
+    window.localStorage.setItem("transitops-fuel-logs", JSON.stringify(fuelLogs));
+  }, [fuelLogs]);
+
+  useEffect(() => {
+    window.localStorage.setItem("transitops-expenses", JSON.stringify(expenses));
+  }, [expenses]);
 
   useEffect(() => {
     window.localStorage.setItem("transitops-theme", theme);

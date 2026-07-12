@@ -5,21 +5,6 @@ import { formatNumber } from "../../../lib/utils";
 export function ValidationSummary({ validation, cargoWeightKg }) {
   const { vehicle, driver, isValid, capacityExceeded } = validation;
 
-  function Item({ status, label, value }) {
-    return (
-      <div className="flex items-start justify-between py-3 border-b border-[var(--border)] last:border-0">
-        <div className="flex items-center gap-2">
-          {status === 'pass' && <Check className="w-4 h-4 text-green-500" />}
-          {status === 'fail' && <X className="w-4 h-4 text-red-500" />}
-          {status === 'warn' && <AlertTriangle className="w-4 h-4 text-yellow-500" />}
-          {status === 'none' && <span className="w-4 h-4 inline-block" />}
-          <span className="text-[13px] uppercase tracking-[0.05em] text-[var(--muted)]">{label}</span>
-        </div>
-        <span className="text-[14px] font-mono text-[var(--text)] text-right">{value || "-"}</span>
-      </div>
-    );
-  }
-
   const validLicense = driver ? new Date(driver.licenseExpiry) >= new Date() : false;
 
   return (
@@ -58,5 +43,20 @@ export function ValidationSummary({ validation, cargoWeightKg }) {
         {isValid ? "Dispatch Ready" : "Action Required"}
       </div>
     </Card>
+  );
+}
+
+function Item({ status, label, value }) {
+  return (
+    <div className="flex items-start justify-between py-3 border-b border-[var(--border)] last:border-0">
+      <div className="flex items-center gap-2">
+        {status === 'pass' && <Check className="w-4 h-4 text-green-500" />}
+        {status === 'fail' && <X className="w-4 h-4 text-red-500" />}
+        {status === 'warn' && <AlertTriangle className="w-4 h-4 text-yellow-500" />}
+        {status === 'none' && <span className="w-4 h-4 inline-block" />}
+        <span className="text-[13px] uppercase tracking-[0.05em] text-[var(--muted)]">{label}</span>
+      </div>
+      <span className="text-[14px] font-mono text-[var(--text)] text-right">{value || "-"}</span>
+    </div>
   );
 }
