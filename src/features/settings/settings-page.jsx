@@ -215,54 +215,29 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      {/* Preferences & Theme Card */}
-      <Card title="Preferences" subtitle="Control delivery alerts and visual mode">
-        <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-start">
-          <div className="space-y-4">
-            <Checkbox
-              label="Daily summary emails"
-              checked={preferences.summaryEmails}
-              onChange={(event) =>
-                setPreferences((current) => ({
-                  ...current,
-                  summaryEmails: event.target.checked,
-                }))
-              }
-            />
-            <Checkbox
-              label="Immediate incident alerts"
-              checked={preferences.incidentAlerts}
-              onChange={(event) =>
-                setPreferences((current) => ({
-                  ...current,
-                  incidentAlerts: event.target.checked,
-                }))
-              }
-            />
-          </div>
-          <div className="border border-[var(--border)] bg-[var(--surface-2)] p-4 rounded">
-            <p className="mb-3 text-[12px] uppercase tracking-[0.08em] text-[var(--muted)]">
-              Theme Mode
-            </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={theme === "dark" ? "primary" : "secondary"}
-                onClick={() => setTheme("dark")}
-              >
-                <Moon className="h-4 w-4" />
-                Dark
-              </Button>
-              <Button
-                type="button"
-                variant={theme === "light" ? "primary" : "secondary"}
-                onClick={() => setTheme("light")}
-              >
-                <Sun className="h-4 w-4" />
-                Light
-              </Button>
-            </div>
-          </div>
+      {/* Preferences Card */}
+      <Card title="Preferences" subtitle="Control delivery alerts">
+        <div className="space-y-4">
+          <Checkbox
+            label="Daily summary emails"
+            checked={preferences.summaryEmails}
+            onChange={(event) =>
+              setPreferences((current) => ({
+                ...current,
+                summaryEmails: event.target.checked,
+              }))
+            }
+          />
+          <Checkbox
+            label="Immediate incident alerts"
+            checked={preferences.incidentAlerts}
+            onChange={(event) =>
+              setPreferences((current) => ({
+                ...current,
+                incidentAlerts: event.target.checked,
+              }))
+            }
+          />
         </div>
       </Card>
     </div>
