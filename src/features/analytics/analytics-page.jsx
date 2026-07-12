@@ -1,201 +1,235 @@
-import { Download, LineChart as LineChartIcon } from "lucide-react";
-import {
-  Area,
-  AreaChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useMemo, useState } from "react";
+import { Download, ShieldAlert } from "lucide-react";
 import { useTransitData } from "../../app/transit-data";
 import { Button } from "../../components/ui/button";
-import { Card } from "../../components/ui/card";
-import { TableShell } from "../../components/ui/table-shell";
-import { downloadCsv, formatCurrency } from "../../lib/utils";
 import { useDemoLoading } from "../../hooks/use-demo-loading";
+import { useAnalytics } from "./use-analytics";
+import { AnalyticsFilters } from "./analytics-filters";
+import { KpiSection } from "./kpi-section";
+import {
+  FleetUtilizationTrend,
+  VehicleStatusDistribution,
+  FuelEfficiencyByVehicle,
+  OperationalCostBreakdown,
+  VehicleROIRanking,
+  TripStatusOverview,
+  MaintenanceImpactChart,
+  DriverComplianceRiskChart,
+} from "./primary-charts";
+import {
+  OdometerGrowthChart,
+  FuelSpendTrendChart,
+  TripsCompletedVsCancelledChart,
+  MaintenanceCostTrendChart,
+  RevenueVsCostChart,
+} from "./secondary-charts";
+import {
+  VehiclesAtRiskTable,
+  DriverReadinessTable,
+  TripPerformanceTable,
+  MaintenanceSummaryTable,
+  ExpenseSummaryTable,
+} from "./insight-tables";
 
-const trendCards = [
-  {
-    label: "Fuel Efficiency",
-    value: "12.8 km/L",
-    data: [
-      { name: "M", value: 10.1 },
-      { name: "T", value: 11.2 },
-      { name: "W", value: 12.3 },
-      { name: "T", value: 12.1 },
-      { name: "F", value: 12.8 },
-    ],
-    color: "var(--series-1)",
-  },
-  {
-    label: "Fleet Utilization",
-    value: "74%",
-    data: [
-      { name: "M", value: 61 },
-      { name: "T", value: 68 },
-      { name: "W", value: 66 },
-      { name: "T", value: 71 },
-      { name: "F", value: 74 },
-    ],
-    color: "var(--series-2)",
-  },
-  {
-    label: "Operational Cost",
-    value: "$8.4k",
-    data: [
-      { name: "M", value: 6.1 },
-      { name: "T", value: 7.2 },
-      { name: "W", value: 7.8 },
-      { name: "T", value: 8.1 },
-      { name: "F", value: 8.4 },
-    ],
-    color: "var(--series-3)",
-  },
-  {
-    label: "Vehicle ROI",
-    value: "1.42x",
-    data: [
-      { name: "M", value: 1.01 },
-      { name: "T", value: 1.15 },
-      { name: "W", value: 1.18 },
-      { name: "T", value: 1.31 },
-      { name: "F", value: 1.42 },
-    ],
-    color: "var(--series-4)",
-  },
-];
+const roleVisibility = {
+  "Operations Lead": "all",
+  "Fleet Manager": "fleet",
+  "Dispatcher": "trips",
+  "Safety Officer": "safety",
+  "Financial Analyst": "finance",
+};
 
 export function AnalyticsPage() {
   const loading = useDemoLoading("analytics");
-  const { vehicles, trips, expenses, fuelLogs } = useTransitData();
+  const { session, rbacMatrix, vehicles, drivers, trips, maintenance, fuelLogs, expenses } = useTransitData();
+  const [filters, setFilters] = useState({});
 
-  const comparisonRows = vehicles
-    .filter((vehicle) => vehicle.status !== "Retired")
-    .map((vehicle) => {
-      const vehicleTrips = trips.filter((trip) => trip.vehicleId === vehicle.id);
-      const vehicleExpenses = expenses
-        .filter((expense) => expense.vehicleId === vehicle.id)
-        .reduce((sum, item) => sum + item.amount, 0);
-      const vehicleFuel = fuelLogs
-        .filter((log) => log.vehicleId === vehicle.id)
-        .reduce((sum, item) => sum + item.amount, 0);
-      const utilization = Math.min(100, vehicleTrips.length * 18 + (vehicle.status === "On Trip" ? 18 : 0));
-      const roi = ((vehicleTrips.length * 520) / Math.max(1, vehicleExpenses + vehicleFuel)).toFixed(2);
+  const activeRole = session?.role || "Operations Lead";
+  const permission = rbacMatrix[activeRole]?.analytics || "none";
+  const viewMode = roleVisibility[activeRole] || "all";
 
-      return {
-        id: vehicle.id,
-        regNumber: vehicle.regNumber,
-        utilization,
-        operatingCost: vehicleExpenses + vehicleFuel,
-        roi,
-      };
-    });
+  const analytics = useAnalytics(filters);
+
+  const {
+    kpis,
+    sparklines,
+    vehicleStatusDistribution,
+    fuelEfficiencyByVehicle,
+    operationalCostBreakdown,
+    vehicleROIRanking,
+    tripStatusOverview,
+    maintenanceImpact,
+    driverComplianceRisk,
+    odometerGrowth,
+    fuelSpendTrend,
+    tripsCompletedVsCancelled,
+    maintenanceCostTrend,
+    revenueVsCost,
+    vehiclesAtRisk,
+    driverReadiness,
+    tripPerformance,
+    maintenanceSummary,
+    expenseSummary,
+    filterOptions,
+  } = analytics;
+
+  function handleExportAll() {
+    const rows = [
+      ["TRANSITOPS ANALYTICS EXPORT"],
+      [""],
+      ["KPI Summary"],
+      ["Active Vehicles", kpis.activeVehicles],
+      ["Available Vehicles", kpis.availableVehicles],
+      ["Vehicles in Maintenance", kpis.vehiclesInMaintenance],
+      ["Active Trips", kpis.activeTrips],
+      ["Pending Trips", kpis.pendingTrips],
+      ["Drivers On Duty", kpis.driversOnDuty],
+      ["Fleet Utilization", `${kpis.fleetUtilization}%`],
+      ["Fuel Cost", kpis.fuelCost],
+      ["Maintenance Cost", kpis.maintenanceCost],
+      ["Operational Cost", kpis.operationalCost],
+      ["Vehicle ROI", kpis.vehicleROI],
+      [""],
+      ["Vehicle Risk Assessment"],
+      ["Registration", "Model", "Status", "Odometer", "Total Cost", "ROI", "Flags"],
+      ...vehiclesAtRisk.map((r) => [
+        r.regNumber, r.model, r.status, r.odometerKm, r.totalCost, `${r.roi}x`, r.flags.join("; "),
+      ]),
+      [""],
+      ["Driver Readiness"],
+      ["Name", "License", "Expiry", "Safety Score", "Status", "Eligible", "Risk Flags"],
+      ...driverReadiness.map((r) => [
+        r.name, r.licenseNumber, r.licenseExpiry, r.safetyScore, r.status, r.eligible ? "Yes" : "No", r.riskFlags.join("; "),
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((c) => `"${String(c).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "transitops-analytics-export.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  if (permission === "none") {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center border border-[var(--border)] bg-[var(--surface)] space-y-4">
+        <div className="flex h-12 w-12 items-center justify-center border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text)]">
+          <ShieldAlert className="h-6 w-6" />
+        </div>
+        <h2 className="text-xl font-bold text-[var(--text)]">Access Restricted</h2>
+        <p className="text-[14px] text-[var(--text-2)] max-w-md">
+          Your active simulated role <strong>{activeRole}</strong> does not have permission to view Analytics.
+          You can adjust these permissions in the <strong>Settings</strong> tab.
+        </p>
+      </div>
+    );
+  }
+
+  const isLoading = loading || (vehicles.length === 0 && drivers.length === 0);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="space-y-2">
           <p className="text-[12px] uppercase tracking-[0.12em] text-[var(--muted)]">
-            Reports
+            Live system intelligence
           </p>
           <h1 className="text-[28px] font-bold text-[var(--text)]">
             Analytics & Reports
           </h1>
           <p className="text-[14px] text-[var(--text-2)]">
-            Metric cards, trend sparklines, and a vehicle-level comparison export.
+            Real-time operational intelligence computed from every fleet record, trip, fuel log, and expense in the system.
           </p>
         </div>
         <div className="flex gap-3">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() =>
-              downloadCsv("transitops-vehicle-comparison.csv", [
-                ["Registration", "Utilization", "Operating Cost", "ROI"],
-                ...comparisonRows.map((item) => [
-                  item.regNumber,
-                  `${item.utilization}%`,
-                  item.operatingCost,
-                  item.roi,
-                ]),
-              ])
-            }
-          >
+          <Button type="button" variant="secondary" onClick={handleExportAll}>
             <Download className="h-4 w-4" />
-            Export CSV
-          </Button>
-          <Button type="button" variant="ghost" disabled>
-            <Download className="h-4 w-4" />
-            Export PDF Soon
+            Export All CSV
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {trendCards.map((card) => (
-          <Card key={card.label} className="metric-card">
-            <p className="text-[12px] uppercase tracking-[0.08em] text-[var(--muted)]">
-              {card.label}
-            </p>
-            <div className="mt-3 flex items-end justify-between gap-3">
-              <p className="mono-display text-[30px]">{card.value}</p>
-              <LineChartIcon className="h-4 w-4 text-[var(--muted)]" />
-            </div>
-            <div className="mt-4 h-[82px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={card.data}>
-                  <XAxis hide dataKey="name" />
-                  <YAxis hide domain={["dataMin - 1", "dataMax + 1"]} />
-                  <Tooltip />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke={card.color}
-                    fill={card.color}
-                    fillOpacity={0.16}
-                    strokeWidth={2.5}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        ))}
-      </div>
+      <AnalyticsFilters filters={filters} onFilterChange={setFilters} filterOptions={filterOptions} />
 
-      <Card title="Vehicle Comparison" subtitle="Per-unit operating efficiency">
-        <TableShell
-          columns={[
-            { key: "vehicle", label: "Vehicle" },
-            { key: "util", label: "Utilization", className: "text-right" },
-            { key: "cost", label: "Operating Cost", className: "text-right" },
-            { key: "roi", label: "ROI", className: "text-right" },
-          ]}
-          data={comparisonRows}
-          loading={loading}
-          emptyIcon={LineChartIcon}
-          emptyTitle="No analytics yet"
-          emptyDescription="Once vehicles start moving, the comparison view will populate."
-          renderRow={(row) => (
-            <tr
-              key={row.id}
-              className="h-14 border-b border-[var(--border)] transition duration-200 hover:bg-[var(--surface-2)]"
-            >
-              <td className="px-4 py-4 font-mono text-[var(--text)]">
-                {row.regNumber}
-              </td>
-              <td className="px-4 py-4 text-right font-mono text-[var(--text)]">
-                {row.utilization}%
-              </td>
-              <td className="px-4 py-4 text-right font-mono text-[var(--text)]">
-                {formatCurrency(row.operatingCost)}
-              </td>
-              <td className="px-4 py-4 text-right font-mono text-[var(--text)]">
-                {row.roi}x
-              </td>
-            </tr>
-          )}
-        />
-      </Card>
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="panel-surface p-6">
+              <div className="skeleton-flat h-3 w-24 bg-[var(--surface-2)]" />
+              <div className="skeleton-flat mt-4 h-8 w-20 bg-[var(--surface-2)]" />
+              <div className="skeleton-flat mt-4 h-[82px] w-full bg-[var(--surface-2)]" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <KpiSection kpis={kpis} sparklines={sparklines} />
+      )}
+
+      {(viewMode === "all" || viewMode === "fleet") && (
+        <>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <FleetUtilizationTrend data={sparklines.fleetUtilization} />
+            <VehicleStatusDistribution data={vehicleStatusDistribution} />
+          </div>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <FuelEfficiencyByVehicle data={fuelEfficiencyByVehicle} />
+            <OperationalCostBreakdown data={operationalCostBreakdown} />
+          </div>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <VehicleROIRanking data={vehicleROIRanking} />
+            <MaintenanceImpactChart data={maintenanceImpact} />
+          </div>
+        </>
+      )}
+
+      {(viewMode === "all" || viewMode === "trips") && (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <TripStatusOverview data={tripStatusOverview} />
+          <TripsCompletedVsCancelledChart data={tripsCompletedVsCancelled} />
+        </div>
+      )}
+
+      {(viewMode === "all" || viewMode === "safety") && (
+        <DriverComplianceRiskChart data={driverComplianceRisk} />
+      )}
+
+      {(viewMode === "all" || viewMode === "finance") && (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <RevenueVsCostChart data={revenueVsCost} />
+          <FuelSpendTrendChart data={fuelSpendTrend} />
+        </div>
+      )}
+
+      {viewMode === "all" && (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <OdometerGrowthChart data={odometerGrowth} />
+          <MaintenanceCostTrendChart data={maintenanceCostTrend} />
+        </div>
+      )}
+
+      {(viewMode === "all" || viewMode === "fleet") && (
+        <VehiclesAtRiskTable data={vehiclesAtRisk} />
+      )}
+
+      {(viewMode === "all" || viewMode === "safety") && (
+        <DriverReadinessTable data={driverReadiness} />
+      )}
+
+      {(viewMode === "all" || viewMode === "trips") && (
+        <TripPerformanceTable data={tripPerformance} />
+      )}
+
+      {(viewMode === "all" || viewMode === "fleet") && (
+        <MaintenanceSummaryTable data={maintenanceSummary} />
+      )}
+
+      {(viewMode === "all" || viewMode === "finance") && (
+        <ExpenseSummaryTable data={expenseSummary} />
+      )}
     </div>
   );
 }
