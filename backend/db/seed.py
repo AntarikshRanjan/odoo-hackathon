@@ -2,11 +2,7 @@ import os
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-DB_HOST = "localhost"
-DB_PORT = "5432"
-DB_USER = "postgres"
-DB_PASSWORD = "lmao"
-DB_NAME = "transitops"
+
 
 SEED_SQL = """
 -- Vehicles (10 records)
