@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ClipboardCheck, Plus } from "lucide-react";
+import { ClipboardCheck, Plus, ShieldAlert } from "lucide-react";
 import { useTransitData } from "../../app/transit-data";
 import { ActionMenu } from "../../components/ui/action-menu";
 import { Button } from "../../components/ui/button";
@@ -14,7 +14,7 @@ import { useDemoLoading } from "../../hooks/use-demo-loading";
 
 export function MaintenancePage() {
   const loading = useDemoLoading("maintenance");
-  const { maintenance, vehicles, logMaintenance, closeMaintenance } = useTransitData();
+  const { maintenance, vehicles, logMaintenance, closeMaintenance, session, rbacMatrix } = useTransitData();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
@@ -23,6 +23,9 @@ export function MaintenancePage() {
     cost: "",
     notes: "",
   });
+
+  const activeRole = session?.role || "Fleet Manager";
+  const permission = rbacMatrix[activeRole]?.maintenance || "none";
 
   const availableVehicles = vehicles.filter((vehicle) => vehicle.status !== "Retired");
 
@@ -43,6 +46,21 @@ export function MaintenancePage() {
     setForm({ vehicleId: "", type: "", cost: "", notes: "" });
   }
 
+  if (permission === "none") {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center border border-[var(--border)] bg-[var(--surface)] rounded space-y-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-500">
+          <ShieldAlert className="h-6 w-6" />
+        </div>
+        <h2 className="text-xl font-bold text-[var(--text)]">Access Restricted</h2>
+        <p className="text-[14px] text-[var(--text-2)] max-w-md">
+          Your active simulated role <strong>{activeRole}</strong> does not have permission to view or manage Maintenance. 
+          You can adjust these permissions in the <strong>Settings</strong> tab.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -55,10 +73,12 @@ export function MaintenancePage() {
             Open, close, and track work orders with immediate fleet status updates.
           </p>
         </div>
-        <Button type="button" onClick={() => setOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Log Maintenance
-        </Button>
+        {permission === "full" && (
+          <Button type="button" onClick={() => setOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Log Maintenance
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -77,9 +97,11 @@ export function MaintenancePage() {
           emptyTitle="No maintenance records"
           emptyDescription="Log the first service event to populate the queue."
           emptyAction={
-            <Button type="button" onClick={() => setOpen(true)}>
-              Log Maintenance
-            </Button>
+            permission === "full" ? (
+              <Button type="button" onClick={() => setOpen(true)}>
+                Log Maintenance
+              </Button>
+            ) : null
           }
           renderRow={(record) => {
             const vehicle = vehicles.find((item) => item.id === record.vehicleId);
@@ -105,18 +127,22 @@ export function MaintenancePage() {
                   <StatusChip status={record.status} />
                 </td>
                 <td className="px-4 py-4 text-right">
-                  <ActionMenu
-                    items={
-                      record.status === "Open"
-                        ? [
-                            {
-                              label: "Close maintenance",
-                              onClick: () => closeMaintenance(record.id),
-                            },
-                          ]
-                        : [{ label: "Record closed", onClick: () => {} }]
-                    }
-                  />
+                  {permission === "full" ? (
+                    <ActionMenu
+                      items={
+                        record.status === "Open"
+                          ? [
+                              {
+                                label: "Close maintenance",
+                                onClick: () => closeMaintenance(record.id),
+                              },
+                            ]
+                          : [{ label: "Record closed", onClick: () => {} }]
+                      }
+                    />
+                  ) : (
+                    <span className="text-[12px] text-[var(--muted)] font-medium">Read Only</span>
+                  )}
                 </td>
               </tr>
             );
