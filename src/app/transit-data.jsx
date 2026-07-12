@@ -4,15 +4,14 @@ import {
   useEffect,
   useState,
 } from "react";
-import {
-  expenseTrend,
-  initialDrivers,
-  initialExpenses,
-  initialFuelLogs,
-  initialMaintenance,
-  initialTrips,
-  initialVehicles,
-} from "../data/mock-data";
+const expenseTrend = [
+  { name: "Jan", cost: 12000 },
+  { name: "Feb", cost: 14500 },
+  { name: "Mar", cost: 13200 },
+  { name: "Apr", cost: 16800 },
+  { name: "May", cost: 15400 },
+  { name: "Jun", cost: 17100 },
+];
 
 const TransitDataContext = createContext(null);
 
@@ -29,12 +28,12 @@ export function TransitDataProvider({ children }) {
     () => window.localStorage.getItem("transitops-theme") || "dark",
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [vehicles, setVehicles] = useState(initialVehicles);
-  const [drivers, setDrivers] = useState(initialDrivers);
-  const [trips, setTrips] = useState(initialTrips);
-  const [maintenance, setMaintenance] = useState(initialMaintenance);
-  const [fuelLogs, setFuelLogs] = useState(initialFuelLogs);
-  const [expenses, setExpenses] = useState(initialExpenses);
+  const [vehicles, setVehicles] = useState([]);
+  const [drivers, setDrivers] = useState([]);
+  const [trips, setTrips] = useState([]);
+  const [maintenance, setMaintenance] = useState([]);
+  const [fuelLogs, setFuelLogs] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [settings, setSettingsState] = useState(() => {
     const raw = window.localStorage.getItem("transitops-settings");
