@@ -57,6 +57,37 @@ export function TransitDataProvider({ children }) {
     return raw ? JSON.parse(raw) : defaultMatrix;
   });
 
+  const API_BASE = "http://localhost:8000/api";
+
+  // Fetch initial data from PostgreSQL backend on mount
+  useEffect(() => {
+    async function loadBackendData() {
+      try {
+        const [vehiclesRes, driversRes, tripsRes, maintRes, fuelRes, expRes, settingsRes, rbacRes] = await Promise.all([
+          fetch(`${API_BASE}/vehicles`).then((r) => r.ok ? r.json() : Promise.reject()),
+          fetch(`${API_BASE}/drivers`).then((r) => r.ok ? r.json() : Promise.reject()),
+          fetch(`${API_BASE}/trips`).then((r) => r.ok ? r.json() : Promise.reject()),
+          fetch(`${API_BASE}/maintenance`).then((r) => r.ok ? r.json() : Promise.reject()),
+          fetch(`${API_BASE}/fuel-logs`).then((r) => r.ok ? r.json() : Promise.reject()),
+          fetch(`${API_BASE}/expenses`).then((r) => r.ok ? r.json() : Promise.reject()),
+          fetch(`${API_BASE}/settings`).then((r) => r.ok ? r.json() : Promise.reject()),
+          fetch(`${API_BASE}/rbac`).then((r) => r.ok ? r.json() : Promise.reject())
+        ]);
+        setVehicles(vehiclesRes);
+        setDrivers(driversRes);
+        setTrips(tripsRes);
+        setMaintenance(maintRes);
+        setFuelLogs(fuelRes);
+        setExpenses(expRes);
+        setSettingsState(settingsRes);
+        setRbacMatrixState(rbacRes);
+      } catch (err) {
+        console.warn("Backend not running or failed; falling back to mock data.", err);
+      }
+    }
+    loadBackendData();
+  }, []);
+
   useEffect(() => {
     window.localStorage.setItem("transitops-settings", JSON.stringify(settings));
   }, [settings]);
@@ -99,7 +130,6 @@ export function TransitDataProvider({ children }) {
       return { ok: false, message: "Enter your email and password to continue." };
     }
 
-    // TODO: Replace this auth stub with the backend team's real login endpoint.
     setSession({
       name: "Ava Singh",
       role: "Operations Lead",
@@ -118,13 +148,22 @@ export function TransitDataProvider({ children }) {
     });
   }
 
-  function addVehicle(payload) {
+  async function addVehicle(payload) {
     const nextVehicle = {
       id: createId("VH"),
       status: "Available",
-      lastService: new Date().toISOString(),
+      lastService: new Date().toISOString().split('T')[0],
       ...payload,
     };
+    try {
+      await fetch(`${API_BASE}/vehicles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextVehicle),
+      });
+    } catch (err) {
+      console.error("Backend write failed:", err);
+    }
     setVehicles((current) => [nextVehicle, ...current]);
     pushToast({
       title: "Vehicle added.",
@@ -132,12 +171,21 @@ export function TransitDataProvider({ children }) {
     });
   }
 
-  function addDriver(payload) {
+  async function addDriver(payload) {
     const nextDriver = {
       id: createId("DR"),
       status: "Available",
       ...payload,
     };
+    try {
+      await fetch(`${API_BASE}/drivers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextDriver),
+      });
+    } catch (err) {
+      console.error("Backend write failed:", err);
+    }
     setDrivers((current) => [nextDriver, ...current]);
     pushToast({
       title: "Driver added.",
@@ -145,7 +193,7 @@ export function TransitDataProvider({ children }) {
     });
   }
 
-  function createTrip(payload) {
+  async function createTrip(payload) {
     const vehicle = vehicles.find((item) => item.id === payload.vehicleId);
     const driver = drivers.find((item) => item.id === payload.driverId);
 
@@ -182,6 +230,16 @@ export function TransitDataProvider({ children }) {
       ...payload,
     };
 
+    try {
+      await fetch(`${API_BASE}/trips`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextTrip),
+      });
+    } catch (err) {
+      console.error("Backend write failed:", err);
+    }
+
     setTrips((current) => [nextTrip, ...current]);
     setVehicles((current) =>
       current.map((item) =>
@@ -201,9 +259,19 @@ export function TransitDataProvider({ children }) {
     return { ok: true };
   }
 
-  function updateTripStatus(tripId, status) {
+  async function updateTripStatus(tripId, status) {
     const trip = trips.find((item) => item.id === tripId);
     if (!trip) return;
+
+    try {
+      await fetch(`${API_BASE}/trips/${tripId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+    } catch (err) {
+      console.error("Backend update failed:", err);
+    }
 
     setTrips((current) =>
       current.map((item) => (item.id === tripId ? { ...item, status } : item)),
@@ -232,7 +300,7 @@ export function TransitDataProvider({ children }) {
     });
   }
 
-  function logMaintenance(payload) {
+  async function logMaintenance(payload) {
     const vehicle = vehicles.find((item) => item.id === payload.vehicleId);
     if (!vehicle) {
       return { ok: false, message: "Choose a vehicle to log maintenance." };
@@ -245,6 +313,16 @@ export function TransitDataProvider({ children }) {
       ...payload,
     };
 
+    try {
+      await fetch(`${API_BASE}/maintenance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextRecord),
+      });
+    } catch (err) {
+      console.error("Backend write failed:", err);
+    }
+
     setMaintenance((current) => [nextRecord, ...current]);
     setVehicles((current) =>
       current.map((item) =>
@@ -253,8 +331,8 @@ export function TransitDataProvider({ children }) {
     );
     setExpenses((current) => [
       {
-        id: createId("EX"),
-        date: new Date().toISOString(),
+        id: "EX-" + nextRecord.id.substring(3),
+        date: new Date().toISOString().split('T')[0],
         category: "Maintenance",
         amount: payload.cost,
         vehicleId: payload.vehicleId,
@@ -269,11 +347,19 @@ export function TransitDataProvider({ children }) {
     return { ok: true };
   }
 
-  function closeMaintenance(recordId) {
+  async function closeMaintenance(recordId) {
     const record = maintenance.find((item) => item.id === recordId);
     if (!record) return;
 
     const vehicle = vehicles.find((item) => item.id === record.vehicleId);
+
+    try {
+      await fetch(`${API_BASE}/maintenance/${recordId}/resolve`, {
+        method: "PUT",
+      });
+    } catch (err) {
+      console.error("Backend resolve failed:", err);
+    }
 
     setMaintenance((current) =>
       current.map((item) =>
@@ -293,11 +379,20 @@ export function TransitDataProvider({ children }) {
     });
   }
 
-  function addFuelLog(payload) {
+  async function addFuelLog(payload) {
     const nextLog = { id: createId("FL"), ...payload };
+    try {
+      await fetch(`${API_BASE}/fuel-logs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextLog),
+      });
+    } catch (err) {
+      console.error("Backend write failed:", err);
+    }
+
     setFuelLogs((current) => [nextLog, ...current]);
 
-    // Update vehicle odometer if provided and higher
     if (payload.odometer && payload.vehicleId) {
       setVehicles((current) =>
         current.map((item) =>
@@ -314,12 +409,22 @@ export function TransitDataProvider({ children }) {
     });
   }
 
-  function addExpense(payload) {
+  async function addExpense(payload) {
     const nextExpense = {
       id: createId("EX"),
       date: new Date().toISOString().split('T')[0],
       ...payload,
     };
+    try {
+      await fetch(`${API_BASE}/expenses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextExpense),
+      });
+    } catch (err) {
+      console.error("Backend write failed:", err);
+    }
+
     setExpenses((current) => [nextExpense, ...current]);
     pushToast({
       title: "Expense logged.",
@@ -327,7 +432,16 @@ export function TransitDataProvider({ children }) {
     });
   }
 
-  function updateSettings(payload) {
+  async function updateSettings(payload) {
+    try {
+      await fetch(`${API_BASE}/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      console.error("Backend settings write failed:", err);
+    }
     setSettingsState((current) => ({ ...current, ...payload }));
     pushToast({
       title: "Settings updated.",
@@ -335,12 +449,19 @@ export function TransitDataProvider({ children }) {
     });
   }
 
-  function updateRBACMatrix(role, page, value) {
-    setRbacMatrixState((current) => {
-      const next = { ...current };
-      next[role] = { ...next[role], [page]: value };
-      return next;
-    });
+  async function updateRBACMatrix(role, page, value) {
+    const nextMatrix = { ...rbacMatrix };
+    nextMatrix[role] = { ...nextMatrix[role], [page]: value };
+    try {
+      await fetch(`${API_BASE}/rbac`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextMatrix),
+      });
+    } catch (err) {
+      console.error("Backend RBAC write failed:", err);
+    }
+    setRbacMatrixState(nextMatrix);
     pushToast({
       title: "RBAC Matrix updated.",
       description: `Permissions for ${role} changed.`,
