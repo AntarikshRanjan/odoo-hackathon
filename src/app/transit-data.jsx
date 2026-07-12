@@ -36,6 +36,34 @@ export function TransitDataProvider({ children }) {
   const [fuelLogs, setFuelLogs] = useState(initialFuelLogs);
   const [expenses, setExpenses] = useState(initialExpenses);
   const [toasts, setToasts] = useState([]);
+  const [settings, setSettingsState] = useState(() => {
+    const raw = window.localStorage.getItem("transitops-settings");
+    return raw ? JSON.parse(raw) : {
+      depotName: 'Central Depot Mumbai',
+      currency: '₹',
+      distanceUnit: 'km'
+    };
+  });
+
+  const [rbacMatrix, setRbacMatrixState] = useState(() => {
+    const raw = window.localStorage.getItem("transitops-rbac");
+    const defaultMatrix = {
+      'Operations Lead': { fleet: 'full', drivers: 'full', trips: 'full', fuelExpenses: 'full', analytics: 'full', maintenance: 'full' },
+      'Fleet Manager': { fleet: 'full', drivers: 'full', trips: 'none', fuelExpenses: 'none', analytics: 'view', maintenance: 'full' },
+      'Dispatcher': { fleet: 'view', drivers: 'none', trips: 'full', fuelExpenses: 'none', analytics: 'none', maintenance: 'none' },
+      'Safety Officer': { fleet: 'none', drivers: 'full', trips: 'view', fuelExpenses: 'none', analytics: 'none', maintenance: 'none' },
+      'Financial Analyst': { fleet: 'view', drivers: 'none', trips: 'none', fuelExpenses: 'full', analytics: 'full', maintenance: 'none' }
+    };
+    return raw ? JSON.parse(raw) : defaultMatrix;
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem("transitops-settings", JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    window.localStorage.setItem("transitops-rbac", JSON.stringify(rbacMatrix));
+  }, [rbacMatrix]);
 
   useEffect(() => {
     if (session) {
@@ -266,7 +294,68 @@ export function TransitDataProvider({ children }) {
   }
 
   function addFuelLog(payload) {
-    setFuelLogs((current) => [{ id: createId("FL"), ...payload }, ...current]);
+    const nextLog = { id: createId("FL"), ...payload };
+    setFuelLogs((current) => [nextLog, ...current]);
+
+    // Update vehicle odometer if provided and higher
+    if (payload.odometer && payload.vehicleId) {
+      setVehicles((current) =>
+        current.map((item) =>
+          item.id === payload.vehicleId && Number(payload.odometer) > item.odometerKm
+            ? { ...item, odometerKm: Number(payload.odometer) }
+            : item,
+        ),
+      );
+    }
+
+    pushToast({
+      title: "Fuel logged.",
+      description: `Added fuel record of ${payload.liters}L (${formatCurrency(payload.amount)}).`,
+    });
+  }
+
+  function addExpense(payload) {
+    const nextExpense = {
+      id: createId("EX"),
+      date: new Date().toISOString().split('T')[0],
+      ...payload,
+    };
+    setExpenses((current) => [nextExpense, ...current]);
+    pushToast({
+      title: "Expense logged.",
+      description: `Logged ${payload.category} expense of ${formatCurrency(payload.amount)}.`,
+    });
+  }
+
+  function updateSettings(payload) {
+    setSettingsState((current) => ({ ...current, ...payload }));
+    pushToast({
+      title: "Settings updated.",
+      description: "Depot settings saved successfully.",
+    });
+  }
+
+  function updateRBACMatrix(role, page, value) {
+    setRbacMatrixState((current) => {
+      const next = { ...current };
+      next[role] = { ...next[role], [page]: value };
+      return next;
+    });
+    pushToast({
+      title: "RBAC Matrix updated.",
+      description: `Permissions for ${role} changed.`,
+    });
+  }
+
+  function setSessionRole(role) {
+    setSession((current) => {
+      if (!current) return current;
+      return { ...current, role };
+    });
+    pushToast({
+      title: "Simulated role switched.",
+      description: `Active context is now ${role}.`,
+    });
   }
 
   const stats = {
@@ -307,6 +396,12 @@ export function TransitDataProvider({ children }) {
     logMaintenance,
     closeMaintenance,
     addFuelLog,
+    addExpense,
+    settings,
+    rbacMatrix,
+    updateSettings,
+    updateRBACMatrix,
+    setSessionRole,
     pushToast,
     stats,
   };
