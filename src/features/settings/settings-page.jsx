@@ -3,9 +3,9 @@ import { Moon, Save, Sun } from "lucide-react";
 import { useTransitData } from "../../app/transit-data";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
-import { Checkbox } from "../../components/ui/checkbox";
 import { Input } from "../../components/ui/input";
 import { Select } from "../../components/ui/select";
+import { Modal } from "../../components/ui/modal";
 
 export function SettingsPage() {
   const { 
@@ -15,7 +15,8 @@ export function SettingsPage() {
     pushToast, 
     settings, 
     updateSettings, 
-    setSessionRole 
+    setSessionRole,
+    logout
   } = useTransitData();
 
   const [profile, setProfile] = useState({
@@ -23,16 +24,14 @@ export function SettingsPage() {
     email: session?.email || "",
   });
 
-  const [preferences, setPreferences] = useState({
-    summaryEmails: true,
-    incidentAlerts: true,
-  });
-
   const [depotForm, setDepotForm] = useState({
     depotName: settings?.depotName || "",
     currency: settings?.currency || "₹",
     distanceUnit: settings?.distanceUnit || "km",
   });
+
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
 
   const rolesList = ["Operations Lead", "Fleet Manager", "Dispatcher", "Safety Officer", "Financial Analyst"];
   
@@ -56,7 +55,7 @@ export function SettingsPage() {
         </p>
         <h1 className="text-[28px] font-bold text-[var(--text)]">Settings</h1>
         <p className="text-[14px] text-[var(--text-2)]">
-          Profile details, notification preferences, and depot controls.
+          Profile details, depot controls, and account settings.
         </p>
       </div>
 
@@ -150,32 +149,67 @@ export function SettingsPage() {
         </Card>
       </div>
 
-
-      {/* Preferences Card */}
-      <Card title="Preferences" subtitle="Control delivery alerts">
+      {/* Account Security & Termination Card */}
+      <Card title="Account Security & Termination" subtitle="Manage account state and termination options">
         <div className="space-y-4">
-          <Checkbox
-            label="Daily summary emails"
-            checked={preferences.summaryEmails}
-            onChange={(event) =>
-              setPreferences((current) => ({
-                ...current,
-                summaryEmails: event.target.checked,
-              }))
-            }
-          />
-          <Checkbox
-            label="Immediate incident alerts"
-            checked={preferences.incidentAlerts}
-            onChange={(event) =>
-              setPreferences((current) => ({
-                ...current,
-                incidentAlerts: event.target.checked,
-              }))
-            }
-          />
+          <p className="text-[13px] text-[var(--text-2)]">
+            Permanently removing your account will revoke access to the control tower and delete your operator profile settings from this workspace.
+          </p>
+          <div>
+            <Button
+              type="button"
+              className="border-red-500 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white"
+              onClick={() => setIsDeleteOpen(true)}
+            >
+              Terminate Account
+            </Button>
+          </div>
         </div>
       </Card>
+
+      {/* Account Deletion Confirmation Modal */}
+      <Modal
+        isOpen={isDeleteOpen}
+        onClose={() => {
+          setIsDeleteOpen(false);
+          setDeleteConfirmationText("");
+        }}
+        title="Confirm Account Deletion"
+        description="Are you absolutely sure you want to delete your operator account? This action is permanent and cannot be undone."
+      >
+        <div className="space-y-4">
+          <p className="text-[13px] text-[var(--text-2)]">
+            To proceed, type <span className="font-mono font-bold text-[var(--text)] bg-[var(--surface-2)] px-1 py-0.5 rounded">DELETE</span> in the box below to confirm:
+          </p>
+          <Input
+            value={deleteConfirmationText}
+            placeholder="Type DELETE"
+            onChange={(e) => setDeleteConfirmationText(e.target.value)}
+          />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setIsDeleteOpen(false);
+                setDeleteConfirmationText("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="border-red-500 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white"
+              disabled={deleteConfirmationText !== "DELETE"}
+              onClick={() => {
+                setIsDeleteOpen(false);
+                setDeleteConfirmationText("");
+                logout();
+              }}
+            >
+              Confirm Delete
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
