@@ -13,6 +13,17 @@ import {
   initialTrips,
   initialVehicles,
 } from "../data/mock-data";
+import {
+  onAuthChange,
+  logOut as firebaseLogOut,
+  signInWithEmail,
+  signUpWithEmail,
+  signInWithGoogle,
+  signInWithGithub,
+  resetPassword,
+  updateUserProfile,
+} from "../lib/auth";
+import { saveUserProfile, getUserProfile } from "../lib/firestore";
 
 const TransitDataContext = createContext(null);
 
@@ -21,10 +32,31 @@ function createId(prefix) {
 }
 
 export function TransitDataProvider({ children }) {
-  const [session, setSession] = useState(() => {
-    const raw = window.localStorage.getItem("transitops-session");
-    return raw ? JSON.parse(raw) : null;
-  });
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Listen to Firebase auth state changes
+  useEffect(() => {
+    const unsubscribe = onAuthChange(async (user) => {
+      if (user) {
+        // Save user profile to Firestore if new
+        await saveUserProfile(user);
+        // Fetch full profile from Firestore
+        const profile = await getUserProfile(user.uid);
+        setSession({
+          uid: user.uid,
+          name: profile?.displayName || user.displayName || "",
+          email: user.email,
+          role: profile?.role || "Operations Lead",
+          photoURL: user.photoURL || "",
+        });
+      } else {
+        setSession(null);
+      }
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
   const [theme, setTheme] = useState(
     () => window.localStorage.getItem("transitops-theme") || "dark",
   );
@@ -66,14 +98,6 @@ export function TransitDataProvider({ children }) {
   }, [rbacMatrix]);
 
   useEffect(() => {
-    if (session) {
-      window.localStorage.setItem("transitops-session", JSON.stringify(session));
-    } else {
-      window.localStorage.removeItem("transitops-session");
-    }
-  }, [session]);
-
-  useEffect(() => {
     window.localStorage.setItem("transitops-theme", theme);
     document.documentElement.dataset.theme = theme;
   }, [theme]);
@@ -94,24 +118,51 @@ export function TransitDataProvider({ children }) {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }
 
-  function login({ email, password, remember }) {
-    if (!email || !password) {
-      return { ok: false, message: "Enter your email and password to continue." };
+  async function login({ email, password, method }) {
+    try {
+      if (method === "google") {
+        await signInWithGoogle();
+      } else if (method === "github") {
+        await signInWithGithub();
+      } else {
+        if (!email || !password) {
+          return { ok: false, message: "Enter your email and password to continue." };
+        }
+        await signInWithEmail(email, password);
+      }
+      return { ok: true };
+    } catch (error) {
+      const message = error.message.includes("auth/")
+        ? "Authentication failed. Check your credentials and try again."
+        : error.message;
+      return { ok: false, message };
     }
-
-    // TODO: Replace this auth stub with the backend team's real login endpoint.
-    setSession({
-      name: "Ava Singh",
-      role: "Operations Lead",
-      email,
-      remember,
-    });
-
-    return { ok: true };
   }
 
-  function logout() {
-    setSession(null);
+  async function signup({ email, password, displayName }) {
+    try {
+      if (!email || !password) {
+        return { ok: false, message: "Enter your email and password to continue." };
+      }
+      await signUpWithEmail(email, password, displayName);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: error.message };
+    }
+  }
+
+  async function forgotPassword(email) {
+    try {
+      if (!email) return { ok: false, message: "Enter your email address." };
+      await resetPassword(email);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: "Failed to send reset email." };
+    }
+  }
+
+  async function logout() {
+    await firebaseLogOut();
     pushToast({
       title: "Signed out.",
       description: "Your control tower session is closed.",
@@ -374,6 +425,7 @@ export function TransitDataProvider({ children }) {
 
   const value = {
     session,
+    authLoading,
     theme,
     setTheme,
     sidebarCollapsed,
@@ -388,6 +440,8 @@ export function TransitDataProvider({ children }) {
     toasts,
     dismissToast,
     login,
+    signup,
+    forgotPassword,
     logout,
     addVehicle,
     addDriver,

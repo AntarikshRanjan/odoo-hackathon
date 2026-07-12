@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { Moon, Save, Sun, Shield } from "lucide-react";
+import { Moon, Save, Sun, Shield, Upload } from "lucide-react";
 import { useTransitData } from "../../app/transit-data";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Checkbox } from "../../components/ui/checkbox";
 import { Input } from "../../components/ui/input";
 import { Select } from "../../components/ui/select";
+import { updateUserProfile } from "../../lib/auth";
+import { updateUserProfileData } from "../../lib/firestore";
+import { uploadProfilePhoto } from "../../lib/storage";
 
 export function SettingsPage() {
   const { 
@@ -36,6 +39,8 @@ export function SettingsPage() {
     distanceUnit: settings?.distanceUnit || "km",
   });
 
+  const [saving, setSaving] = useState(false);
+
   const rolesList = ["Operations Lead", "Fleet Manager", "Dispatcher", "Safety Officer", "Financial Analyst"];
   
   const pagesList = [
@@ -47,11 +52,59 @@ export function SettingsPage() {
     { key: "analytics", label: "Reports & Analytics" }
   ];
 
-  function handleProfileSave() {
-    pushToast({
-      title: "Profile saved.",
-      description: "Operator details updated.",
-    });
+  async function handleProfileSave() {
+    setSaving(true);
+    try {
+      await updateUserProfile(profile.name);
+      await updateUserProfileData(session.uid, {
+        displayName: profile.name,
+      });
+      pushToast({
+        title: "Profile saved.",
+        description: "Operator details updated in Firebase.",
+      });
+    } catch (error) {
+      pushToast({
+        title: "Error",
+        description: error.message,
+        variant: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePhotoUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      pushToast({
+        title: "Error",
+        description: "Image must be under 5MB.",
+        variant: "error",
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const photoURL = await uploadProfilePhoto(session.uid, file);
+      await updateUserProfile(undefined, photoURL);
+      await updateUserProfileData(session.uid, { photoURL });
+      pushToast({
+        title: "Photo updated.",
+        description: "Profile photo uploaded successfully.",
+      });
+    } catch (error) {
+      pushToast({
+        title: "Error",
+        description: "Failed to upload photo.",
+        variant: "error",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleDepotSave(e) {
@@ -75,6 +128,40 @@ export function SettingsPage() {
         {/* Profile Card */}
         <Card title="Profile" subtitle="Operator context and simulated role">
           <div className="space-y-4">
+            {/* Profile Photo */}
+            <div className="flex items-center gap-4">
+              <div className="relative h-16 w-16 rounded-full border border-[var(--border)] bg-[var(--surface-2)] overflow-hidden">
+                {session?.photoURL ? (
+                  <img
+                    src={session.photoURL}
+                    alt="Profile"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-[20px] font-bold text-[var(--muted)]">
+                    {session?.name?.charAt(0) || session?.email?.charAt(0) || "?"}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoUpload}
+                  />
+                  <Button type="button" variant="secondary" size="compact" asChild>
+                    <span>
+                      <Upload className="h-4 w-4" />
+                      Upload Photo
+                    </span>
+                  </Button>
+                </label>
+                <p className="text-[11px] text-[var(--muted)] mt-1">Max 5MB</p>
+              </div>
+            </div>
+
             <Field label="Name">
               <Input
                 value={profile.name}
@@ -87,9 +174,8 @@ export function SettingsPage() {
               <Input
                 type="email"
                 value={profile.email}
-                onChange={(event) =>
-                  setProfile((current) => ({ ...current, email: event.target.value }))
-                }
+                disabled
+                className="opacity-60"
               />
             </Field>
             <Field label="Simulated Role (RBAC)">
@@ -105,9 +191,9 @@ export function SettingsPage() {
               </Select>
             </Field>
             <div className="flex justify-end pt-2">
-              <Button type="button" onClick={handleProfileSave}>
+              <Button type="button" onClick={handleProfileSave} disabled={saving}>
                 <Save className="h-4 w-4" />
-                Save Profile
+                {saving ? "Saving..." : "Save Profile"}
               </Button>
             </div>
           </div>

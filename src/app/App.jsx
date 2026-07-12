@@ -46,7 +46,15 @@ const SettingsPage = lazy(() =>
 );
 
 function ProtectedRoutes() {
-  const { session } = useTransitData();
+  const { session, authLoading } = useTransitData();
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)]">
+        <p className="text-[13px] text-[var(--muted)]">Loading...</p>
+      </div>
+    );
+  }
 
   if (!session) {
     return <Navigate to="/login" replace />;
@@ -70,7 +78,15 @@ function suspense(element) {
 }
 
 export default function App() {
-  const { session } = useTransitData();
+  const { session, authLoading } = useTransitData();
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)]">
+        <p className="text-[13px] text-[var(--muted)]">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <Routes>
