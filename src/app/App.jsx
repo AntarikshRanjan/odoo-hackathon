@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useTransitData } from "./transit-data";
 import { AppShell } from "../components/layout/app-shell";
 import { LoginPage } from "../features/auth/login-page";
+import { getDefaultRouteForRole } from "../lib/rbac";
 
 const DashboardPage = lazy(() =>
   import("../features/dashboard/dashboard-page").then((module) => ({
@@ -69,6 +70,21 @@ function suspense(element) {
   return <Suspense fallback={<RouteFallback />}>{element}</Suspense>;
 }
 
+function AccessGate({ permissionKey, children }) {
+  const { session, rbacMatrix, canAccess } = useTransitData();
+
+  if (!canAccess(permissionKey)) {
+    return (
+      <Navigate
+        to={getDefaultRouteForRole(rbacMatrix, session?.role)}
+        replace
+      />
+    );
+  }
+
+  return children;
+}
+
 export default function App() {
   const { session } = useTransitData();
 
@@ -81,12 +97,42 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoutes />}>
         <Route path="/dashboard" element={suspense(<DashboardPage />)} />
-        <Route path="/fleet" element={suspense(<FleetPage />)} />
-        <Route path="/drivers" element={suspense(<DriversPage />)} />
-        <Route path="/trips" element={suspense(<TripsPage />)} />
-        <Route path="/maintenance" element={suspense(<MaintenancePage />)} />
-        <Route path="/expenses" element={suspense(<ExpensesPage />)} />
-        <Route path="/analytics" element={suspense(<AnalyticsPage />)} />
+        <Route
+          path="/fleet"
+          element={<AccessGate permissionKey="fleet">{suspense(<FleetPage />)}</AccessGate>}
+        />
+        <Route
+          path="/drivers"
+          element={<AccessGate permissionKey="drivers">{suspense(<DriversPage />)}</AccessGate>}
+        />
+        <Route
+          path="/trips"
+          element={<AccessGate permissionKey="trips">{suspense(<TripsPage />)}</AccessGate>}
+        />
+        <Route
+          path="/maintenance"
+          element={
+            <AccessGate permissionKey="maintenance">
+              {suspense(<MaintenancePage />)}
+            </AccessGate>
+          }
+        />
+        <Route
+          path="/expenses"
+          element={
+            <AccessGate permissionKey="fuelExpenses">
+              {suspense(<ExpensesPage />)}
+            </AccessGate>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <AccessGate permissionKey="analytics">
+              {suspense(<AnalyticsPage />)}
+            </AccessGate>
+          }
+        />
         <Route path="/settings" element={suspense(<SettingsPage />)} />
       </Route>
       <Route

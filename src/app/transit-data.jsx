@@ -4,21 +4,53 @@ import {
   useEffect,
   useState,
 } from "react";
-import { formatCurrency } from "../lib/utils";
 import {
-  expenseTrend,
   initialDrivers,
   initialExpenses,
   initialFuelLogs,
   initialMaintenance,
   initialTrips,
   initialVehicles,
-} from "../data/mock-data";
+} from "../lib/mock-fallback-data";
+import {
+  DEFAULT_RBAC_MATRIX,
+  DEMO_PASSWORD,
+  ROLE_PROFILES,
+  canAccessPermission,
+  canManagePermission,
+  findProfileForCredentials,
+  getPermissionLevel,
+  isLiveTripStatus,
+} from "../lib/rbac";
+import { buildExpenseTrend, buildTransitStats } from "../lib/transit-selectors";
+import { formatCurrency } from "../lib/utils";
 
 const TransitDataContext = createContext(null);
+const API_BASE = "http://localhost:8000/api";
 
 function createId(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+
+async function safeJsonFetch(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function tryBackendWrite(url, payload, options = {}) {
+  try {
+    await fetch(url, {
+      method: options.method || "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload === undefined ? undefined : JSON.stringify(payload),
+    });
+  } catch (error) {
+    console.error("Backend write failed:", error);
+  }
 }
 
 export function TransitDataProvider({ children }) {
@@ -57,65 +89,60 @@ export function TransitDataProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const [settings, setSettingsState] = useState(() => {
     const raw = window.localStorage.getItem("transitops-settings");
-    return raw ? JSON.parse(raw) : {
-      depotName: 'Central Depot Mumbai',
-      currency: '₹',
-      distanceUnit: 'km'
-    };
+    return raw
+      ? JSON.parse(raw)
+      : {
+          depotName: "Central Depot Mumbai",
+          currency: "₹",
+          distanceUnit: "km",
+        };
   });
-
   const [rbacMatrix, setRbacMatrixState] = useState(() => {
     const raw = window.localStorage.getItem("transitops-rbac");
-    const defaultMatrix = {
-      'Operations Lead': { fleet: 'full', drivers: 'full', trips: 'full', fuelExpenses: 'full', analytics: 'full', maintenance: 'full' },
-      'Fleet Manager': { fleet: 'full', drivers: 'full', trips: 'none', fuelExpenses: 'none', analytics: 'view', maintenance: 'full' },
-      'Dispatcher': { fleet: 'view', drivers: 'none', trips: 'full', fuelExpenses: 'none', analytics: 'none', maintenance: 'none' },
-      'Safety Officer': { fleet: 'none', drivers: 'full', trips: 'view', fuelExpenses: 'none', analytics: 'none', maintenance: 'none' },
-      'Financial Analyst': { fleet: 'view', drivers: 'none', trips: 'none', fuelExpenses: 'full', analytics: 'full', maintenance: 'none' }
-    };
-    return raw ? JSON.parse(raw) : defaultMatrix;
+    return raw ? JSON.parse(raw) : DEFAULT_RBAC_MATRIX;
   });
 
-  const API_BASE = "http://localhost:8000/api";
-
-  // Fetch initial data from PostgreSQL backend on mount — only for demo user (Ava Singh, id=1)
   useEffect(() => {
     async function loadBackendData() {
-      if (!session || session.id !== 1) {
-        // Non-demo users start with empty data
-        setVehicles([]);
-        setDrivers([]);
-        setTrips([]);
-        setMaintenance([]);
-        setFuelLogs([]);
-        setExpenses([]);
-        return;
-      }
       try {
-        const [vehiclesRes, driversRes, tripsRes, maintRes, fuelRes, expRes, settingsRes, rbacRes] = await Promise.all([
-          fetch(`${API_BASE}/vehicles`).then((r) => r.ok ? r.json() : Promise.reject()),
-          fetch(`${API_BASE}/drivers`).then((r) => r.ok ? r.json() : Promise.reject()),
-          fetch(`${API_BASE}/trips`).then((r) => r.ok ? r.json() : Promise.reject()),
-          fetch(`${API_BASE}/maintenance`).then((r) => r.ok ? r.json() : Promise.reject()),
-          fetch(`${API_BASE}/fuel-logs`).then((r) => r.ok ? r.json() : Promise.reject()),
-          fetch(`${API_BASE}/expenses`).then((r) => r.ok ? r.json() : Promise.reject()),
-          fetch(`${API_BASE}/settings`).then((r) => r.ok ? r.json() : Promise.reject()),
-          fetch(`${API_BASE}/rbac`).then((r) => r.ok ? r.json() : Promise.reject())
+        const [
+          nextVehicles,
+          nextDrivers,
+          nextTrips,
+          nextMaintenance,
+          nextFuelLogs,
+          nextExpenses,
+          nextSettings,
+          nextRbac,
+        ] = await Promise.all([
+          safeJsonFetch(`${API_BASE}/vehicles`),
+          safeJsonFetch(`${API_BASE}/drivers`),
+          safeJsonFetch(`${API_BASE}/trips`),
+          safeJsonFetch(`${API_BASE}/maintenance`),
+          safeJsonFetch(`${API_BASE}/fuel-logs`),
+          safeJsonFetch(`${API_BASE}/expenses`),
+          safeJsonFetch(`${API_BASE}/settings`),
+          safeJsonFetch(`${API_BASE}/rbac`),
         ]);
-        setVehicles(vehiclesRes);
-        setDrivers(driversRes);
-        setTrips(tripsRes);
-        setMaintenance(maintRes);
-        setFuelLogs(fuelRes);
-        setExpenses(expRes);
-        setSettingsState(settingsRes);
-        setRbacMatrixState(rbacRes);
-      } catch (err) {
-        console.warn("Backend not running or failed; falling back to empty data.", err);
+
+        setVehicles(nextVehicles);
+        setDrivers(nextDrivers);
+        setTrips(nextTrips);
+        setMaintenance(nextMaintenance);
+        setFuelLogs(nextFuelLogs);
+        setExpenses(nextExpenses);
+        setSettingsState((current) => ({ ...current, ...nextSettings }));
+        setRbacMatrixState(nextRbac);
+      } catch (error) {
+        console.warn(
+          "Backend not running or failed; continuing with fallback data.",
+          error,
+        );
       }
     }
+
     loadBackendData();
-  }, [session]);
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem("transitops-settings", JSON.stringify(settings));
@@ -178,35 +205,31 @@ export function TransitDataProvider({ children }) {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }
 
-  async function login({ email, password, remember }) {
-    if (!email || !password) {
-      return { ok: false, message: "Enter your email and password to continue." };
+  async function login({ email, password, remember, role }) {
+    if (!email || !password || !role) {
+      return {
+        ok: false,
+        message: "Choose a role, then enter your email and password to continue.",
+      };
     }
 
-    try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+    const profile = findProfileForCredentials(email, role);
 
-      if (!res.ok) {
-        return { ok: false, message: "Invalid email or password." };
-      }
-
-      const user = await res.json();
-      setSession({
-        id: user.id,
-        name: user.name,
-        role: user.role,
-        email: user.email,
-        remember,
-      });
-
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, message: "Cannot reach the server. Try again." };
+    if (!profile || password !== DEMO_PASSWORD) {
+      return {
+        ok: false,
+        message: "Invalid credentials for the selected role. Use the demo account assigned to that role.",
+      };
     }
+
+    setSession({
+      name: profile.name,
+      role: profile.role,
+      email: profile.email,
+      remember,
+    });
+
+    return { ok: true };
   }
 
   function logout() {
@@ -227,18 +250,12 @@ export function TransitDataProvider({ children }) {
     const nextVehicle = {
       id: createId("VH"),
       status: "Available",
-      lastService: new Date().toISOString().split('T')[0],
+      lastService: new Date().toISOString().split("T")[0],
+      acqCost: Number(payload.acqCost || 0),
       ...payload,
     };
-    try {
-      await fetch(`${API_BASE}/vehicles`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextVehicle),
-      });
-    } catch (err) {
-      console.error("Backend write failed:", err);
-    }
+
+    await tryBackendWrite(`${API_BASE}/vehicles`, nextVehicle);
     setVehicles((current) => [nextVehicle, ...current]);
     pushToast({
       title: "Vehicle added.",
@@ -250,17 +267,12 @@ export function TransitDataProvider({ children }) {
     const nextDriver = {
       id: createId("DR"),
       status: "Available",
+      licenseCategory: payload.licenseCategory || "Transport",
+      contactNumber: payload.contactNumber || "",
       ...payload,
     };
-    try {
-      await fetch(`${API_BASE}/drivers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextDriver),
-      });
-    } catch (err) {
-      console.error("Backend write failed:", err);
-    }
+
+    await tryBackendWrite(`${API_BASE}/drivers`, nextDriver);
     setDrivers((current) => [nextDriver, ...current]);
     pushToast({
       title: "Driver added.",
@@ -271,24 +283,10 @@ export function TransitDataProvider({ children }) {
   async function createTrip(payload) {
     const vehicle = vehicles.find((item) => item.id === payload.vehicleId);
     const driver = drivers.find((item) => item.id === payload.driverId);
+    const nextStatus = payload.status || "Draft";
 
     if (!vehicle || !driver) {
       return { ok: false, message: "Choose an available vehicle and driver." };
-    }
-
-    if (vehicle.status !== "Available") {
-      return { ok: false, message: "Vehicle is not available for dispatch." };
-    }
-
-    if (driver.status !== "Available") {
-      return { ok: false, message: "Driver is not available for dispatch." };
-    }
-
-    if (new Date(driver.licenseExpiry) < new Date()) {
-      return {
-        ok: false,
-        message: "License has expired — update it before assigning this driver.",
-      };
     }
 
     if (payload.cargoWeightKg > vehicle.capacityKg) {
@@ -298,59 +296,131 @@ export function TransitDataProvider({ children }) {
       };
     }
 
+    if (nextStatus === "Dispatched") {
+      if (vehicle.status !== "Available") {
+        return { ok: false, message: "Vehicle is not available for dispatch." };
+      }
+
+      if (driver.status !== "Available") {
+        return { ok: false, message: "Driver is not available for dispatch." };
+      }
+
+      if (new Date(driver.licenseExpiry) < new Date()) {
+        return {
+          ok: false,
+          message: "License has expired — update it before assigning this driver.",
+        };
+      }
+    }
+
     const nextTrip = {
       id: `TR-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`,
-      status: "Dispatched",
-      departureDate: new Date().toISOString(),
+      status: nextStatus,
+      departureDate:
+        nextStatus === "Dispatched"
+          ? new Date().toISOString()
+          : payload.departureDate || null,
+      createdAt: new Date().toISOString(),
       ...payload,
     };
 
-    try {
-      await fetch(`${API_BASE}/trips`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextTrip),
-      });
-    } catch (err) {
-      console.error("Backend write failed:", err);
-    }
-
+    await tryBackendWrite(`${API_BASE}/trips`, nextTrip);
     setTrips((current) => [nextTrip, ...current]);
-    setVehicles((current) =>
-      current.map((item) =>
-        item.id === payload.vehicleId ? { ...item, status: "On Trip" } : item,
-      ),
-    );
-    setDrivers((current) =>
-      current.map((item) =>
-        item.id === payload.driverId ? { ...item, status: "On Trip" } : item,
-      ),
-    );
-    pushToast({
-      title: "Trip dispatched.",
-      description: `${vehicle.regNumber} and ${driver.name} are now live.`,
-    });
+
+    if (nextStatus === "Dispatched") {
+      setVehicles((current) =>
+        current.map((item) =>
+          item.id === payload.vehicleId ? { ...item, status: "On Trip" } : item,
+        ),
+      );
+      setDrivers((current) =>
+        current.map((item) =>
+          item.id === payload.driverId ? { ...item, status: "On Trip" } : item,
+        ),
+      );
+      pushToast({
+        title: "Trip dispatched.",
+        description: `${vehicle.regNumber} and ${driver.name} are now live.`,
+      });
+    } else {
+      pushToast({
+        title: "Trip saved as draft.",
+        description: `${vehicle.regNumber} is planned, but not dispatched yet.`,
+      });
+    }
 
     return { ok: true };
   }
 
   async function updateTripStatus(tripId, status) {
     const trip = trips.find((item) => item.id === tripId);
-    if (!trip) return;
+    if (!trip) return { ok: false, message: "Trip not found." };
 
-    try {
-      await fetch(`${API_BASE}/trips/${tripId}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-    } catch (err) {
-      console.error("Backend update failed:", err);
+    if (status === "Dispatched") {
+      const vehicle = vehicles.find((item) => item.id === trip.vehicleId);
+      const driver = drivers.find((item) => item.id === trip.driverId);
+
+      if (!vehicle || !driver) {
+        pushToast({
+          title: "Dispatch blocked.",
+          description: "The selected vehicle or driver is missing from the live registry.",
+          variant: "danger",
+        });
+        return { ok: false, message: "Vehicle or driver record is missing." };
+      }
+
+      if (vehicle.status !== "Available") {
+        pushToast({
+          title: "Dispatch blocked.",
+          description: `${vehicle.regNumber} is no longer available.`,
+          variant: "danger",
+        });
+        return { ok: false, message: "Vehicle is not available for dispatch." };
+      }
+
+      if (driver.status !== "Available" || new Date(driver.licenseExpiry) < new Date()) {
+        pushToast({
+          title: "Dispatch blocked.",
+          description: `${driver.name} is no longer dispatch-ready.`,
+          variant: "danger",
+        });
+        return { ok: false, message: "Driver is not available for dispatch." };
+      }
     }
 
-    setTrips((current) =>
-      current.map((item) => (item.id === tripId ? { ...item, status } : item)),
+    await tryBackendWrite(
+      `${API_BASE}/trips/${tripId}/status`,
+      { status },
+      { method: "PUT" },
     );
+
+    setTrips((current) =>
+      current.map((item) =>
+        item.id === tripId
+          ? {
+              ...item,
+              status,
+              departureDate:
+                status === "Dispatched"
+                  ? new Date().toISOString()
+                  : item.departureDate,
+            }
+          : item,
+      ),
+    );
+
+    if (isLiveTripStatus(status)) {
+      setVehicles((current) =>
+        current.map((item) =>
+          item.id === trip.vehicleId ? { ...item, status: "On Trip" } : item,
+        ),
+      );
+      setDrivers((current) =>
+        current.map((item) =>
+          item.id === trip.driverId ? { ...item, status: "On Trip" } : item,
+        ),
+      );
+    }
 
     if (status === "Completed" || status === "Cancelled") {
       setVehicles((current) =>
@@ -370,9 +440,16 @@ export function TransitDataProvider({ children }) {
     }
 
     pushToast({
-      title: status === "Completed" ? "Trip completed." : "Trip cancelled.",
-      description: `${trip.id} updated across the dispatch board.`,
+      title:
+        status === "Dispatched"
+          ? "Trip dispatched."
+          : status === "Completed"
+            ? "Trip completed."
+            : "Trip cancelled.",
+      description: `${trip.id} updated to ${status}.`,
     });
+
+    return { ok: true };
   }
 
   async function dispatchTrip(payload) {
@@ -382,6 +459,24 @@ export function TransitDataProvider({ children }) {
   async function completeTrip(tripId, data) {
     const trip = trips.find((item) => item.id === tripId);
     if (!trip) return;
+
+    setTrips((current) =>
+      current.map((item) =>
+        item.id === tripId
+          ? {
+              ...item,
+              actualDistance: Number(data.actualDistance) || 0,
+              actualDistanceKm: Number(data.actualDistance) || 0,
+              finalOdometer: Number(data.finalOdometer) || 0,
+              finalOdometerKm: Number(data.finalOdometer) || 0,
+              fuelConsumed: Number(data.fuelUsed) || 0,
+              fuelUsedLiters: Number(data.fuelUsed) || 0,
+              arrivalTime: data.arrivalTime || null,
+              completionNotes: data.notes || "",
+            }
+          : item,
+      ),
+    );
 
     if (data.fuelUsed) {
       const fuelCost = Number(data.fuelUsed) * 1.5; // Mock fuel cost
@@ -424,23 +519,50 @@ export function TransitDataProvider({ children }) {
   function validateTrip(form) {
     const vehicle = vehicles.find((v) => v.id === form.vehicleId);
     const driver = drivers.find((d) => d.id === form.driverId);
-    
-    const isVehicleValid = vehicle?.status === "Available" && !["In Shop", "Retired"].includes(vehicle.status);
+
+    const isVehicleValid =
+      vehicle?.status === "Available" && !["In Shop", "Retired"].includes(vehicle.status);
     const validLicense = driver ? new Date(driver.licenseExpiry) >= new Date() : false;
-    const isDriverValid = driver?.status === "Available" && validLicense && driver?.status !== "Suspended";
+    const isDriverValid =
+      driver?.status === "Available" && validLicense && driver?.status !== "Suspended";
     const capacityExceeded = vehicle && Number(form.cargoWeightKg) > vehicle.capacityKg;
-    
+
     return {
-      isValid: form.vehicleId && form.driverId && isVehicleValid && isDriverValid && !capacityExceeded,
+      isValid:
+        Boolean(form.vehicleId) &&
+        Boolean(form.driverId) &&
+        isVehicleValid &&
+        isDriverValid &&
+        !capacityExceeded,
       vehicle,
       driver,
       capacityExceeded,
     };
   }
 
-  function calculateFuelEfficiency(trip) {
-    // Return mock string for KPI
-    return "8.2 km/L"; 
+  function calculateFuelEfficiency() {
+    const completedTrips = trips.filter(
+      (trip) => trip.status === "Completed" && Number(trip.fuelUsedLiters) > 0,
+    );
+
+    if (completedTrips.length === 0) {
+      return "0 km/L";
+    }
+
+    const totalDistance = completedTrips.reduce(
+      (sum, trip) => sum + Number(trip.actualDistanceKm || trip.plannedDistance || 0),
+      0,
+    );
+    const totalFuel = completedTrips.reduce(
+      (sum, trip) => sum + Number(trip.fuelUsedLiters || 0),
+      0,
+    );
+
+    if (totalFuel === 0) {
+      return "0 km/L";
+    }
+
+    return `${(totalDistance / totalFuel).toFixed(1)} km/L`;
   }
 
   function calculateOperationalCost(tripId) {
@@ -461,16 +583,7 @@ export function TransitDataProvider({ children }) {
       ...payload,
     };
 
-    try {
-      await fetch(`${API_BASE}/maintenance`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextRecord),
-      });
-    } catch (err) {
-      console.error("Backend write failed:", err);
-    }
-
+    await tryBackendWrite(`${API_BASE}/maintenance`, nextRecord);
     setMaintenance((current) => [nextRecord, ...current]);
     setVehicles((current) =>
       current.map((item) =>
@@ -480,7 +593,7 @@ export function TransitDataProvider({ children }) {
     setExpenses((current) => [
       {
         id: "EX-" + nextRecord.id.substring(3),
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toISOString().split("T")[0],
         category: "Maintenance",
         amount: payload.cost,
         vehicleId: payload.vehicleId,
@@ -501,13 +614,11 @@ export function TransitDataProvider({ children }) {
 
     const vehicle = vehicles.find((item) => item.id === record.vehicleId);
 
-    try {
-      await fetch(`${API_BASE}/maintenance/${recordId}/resolve`, {
-        method: "PUT",
-      });
-    } catch (err) {
-      console.error("Backend resolve failed:", err);
-    }
+    await tryBackendWrite(
+      `${API_BASE}/maintenance/${recordId}/resolve`,
+      undefined,
+      { method: "PUT" },
+    );
 
     setMaintenance((current) =>
       current.map((item) =>
@@ -529,15 +640,7 @@ export function TransitDataProvider({ children }) {
 
   async function addFuelLog(payload) {
     const nextLog = { id: createId("FL"), ...payload };
-    try {
-      await fetch(`${API_BASE}/fuel-logs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextLog),
-      });
-    } catch (err) {
-      console.error("Backend write failed:", err);
-    }
+    await tryBackendWrite(`${API_BASE}/fuel-logs`, nextLog);
 
     setFuelLogs((current) => [nextLog, ...current]);
 
@@ -560,19 +663,11 @@ export function TransitDataProvider({ children }) {
   async function addExpense(payload) {
     const nextExpense = {
       id: createId("EX"),
-      date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString().split("T")[0],
       ...payload,
     };
-    try {
-      await fetch(`${API_BASE}/expenses`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextExpense),
-      });
-    } catch (err) {
-      console.error("Backend write failed:", err);
-    }
 
+    await tryBackendWrite(`${API_BASE}/expenses`, nextExpense);
     setExpenses((current) => [nextExpense, ...current]);
     pushToast({
       title: "Expense logged.",
@@ -581,15 +676,7 @@ export function TransitDataProvider({ children }) {
   }
 
   async function updateSettings(payload) {
-    try {
-      await fetch(`${API_BASE}/settings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } catch (err) {
-      console.error("Backend settings write failed:", err);
-    }
+    await tryBackendWrite(`${API_BASE}/settings`, payload);
     setSettingsState((current) => ({ ...current, ...payload }));
     pushToast({
       title: "Settings updated.",
@@ -598,17 +685,12 @@ export function TransitDataProvider({ children }) {
   }
 
   async function updateRBACMatrix(role, page, value) {
-    const nextMatrix = { ...rbacMatrix };
-    nextMatrix[role] = { ...nextMatrix[role], [page]: value };
-    try {
-      await fetch(`${API_BASE}/rbac`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextMatrix),
-      });
-    } catch (err) {
-      console.error("Backend RBAC write failed:", err);
-    }
+    const nextMatrix = {
+      ...rbacMatrix,
+      [role]: { ...rbacMatrix[role], [page]: value },
+    };
+
+    await tryBackendWrite(`${API_BASE}/rbac`, nextMatrix);
     setRbacMatrixState(nextMatrix);
     pushToast({
       title: "RBAC Matrix updated.",
@@ -627,19 +709,27 @@ export function TransitDataProvider({ children }) {
     });
   }
 
-  const stats = {
-    activeTrips: trips.filter((item) => item.status === "Dispatched").length,
-    availableVehicles: vehicles.filter((item) => item.status === "Available").length,
-    inShopVehicles: vehicles.filter((item) => item.status === "In Shop").length,
-    availableDrivers: drivers.filter((item) => item.status === "Available").length,
-    dispatchReadyDrivers: drivers.filter(
-      (item) =>
-        item.status === "Available" && new Date(item.licenseExpiry) >= new Date(),
-    ).length,
-    totalOperationalCost:
-      expenses.reduce((sum, item) => sum + item.amount, 0) +
-      fuelLogs.reduce((sum, item) => sum + item.amount, 0),
-  };
+  function getAccessLevel(permissionKey, role = session?.role) {
+    return getPermissionLevel(rbacMatrix, role, permissionKey);
+  }
+
+  function canAccess(permissionKey, role = session?.role) {
+    return canAccessPermission(rbacMatrix, role, permissionKey);
+  }
+
+  function canManage(permissionKey, role = session?.role) {
+    return canManagePermission(rbacMatrix, role, permissionKey);
+  }
+
+  const expenseTrend = buildExpenseTrend(expenses, fuelLogs);
+  const stats = buildTransitStats({
+    vehicles,
+    drivers,
+    trips,
+    maintenance,
+    expenses,
+    fuelLogs,
+  });
 
   const value = {
     session,
@@ -668,9 +758,13 @@ export function TransitDataProvider({ children }) {
     addExpense,
     settings,
     rbacMatrix,
+    roleProfiles: ROLE_PROFILES,
     updateSettings,
     updateRBACMatrix,
     setSessionRole,
+    getAccessLevel,
+    canAccess,
+    canManage,
     pushToast,
     stats,
     dispatchTrip,

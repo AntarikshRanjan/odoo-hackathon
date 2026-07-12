@@ -1,4 +1,5 @@
 import os
+import json
 import decimal
 import datetime
 from typing import Optional, Dict, Any, List
@@ -91,11 +92,10 @@ def startup_db_check():
                 INSERT INTO system_settings (key, value) VALUES (
                     'rbac_matrix',
                     '{
-                      "Operations Lead": {"fleet": "full", "drivers": "full", "trips": "full", "fuelExpenses": "full", "analytics": "full", "maintenance": "full"},
-                      "Fleet Manager": {"fleet": "full", "drivers": "full", "trips": "none", "fuelExpenses": "none", "analytics": "view", "maintenance": "full"},
-                      "Dispatcher": {"fleet": "view", "drivers": "none", "trips": "full", "fuelExpenses": "none", "analytics": "none", "maintenance": "none"},
-                      "Safety Officer": {"fleet": "none", "drivers": "full", "trips": "view", "fuelExpenses": "none", "analytics": "none", "maintenance": "none"},
-                      "Financial Analyst": {"fleet": "view", "drivers": "none", "trips": "none", "fuelExpenses": "full", "analytics": "full", "maintenance": "none"}
+                      "Fleet Manager": {"fleet": "full", "drivers": "view", "trips": "view", "fuelExpenses": "view", "analytics": "view", "maintenance": "full"},
+                      "Dispatcher": {"fleet": "view", "drivers": "view", "trips": "full", "fuelExpenses": "none", "analytics": "none", "maintenance": "none"},
+                      "Safety Officer": {"fleet": "view", "drivers": "full", "trips": "view", "fuelExpenses": "none", "analytics": "none", "maintenance": "none"},
+                      "Financial Analyst": {"fleet": "view", "drivers": "none", "trips": "view", "fuelExpenses": "full", "analytics": "full", "maintenance": "view"}
                     }'::jsonb
                 )
             """)
@@ -145,18 +145,18 @@ class VehicleCreate(BaseModel):
     region: str
     fuelType: str
     lastService: str
-    acqCost: float
+    acqCost: float = 0
 
 class DriverCreate(BaseModel):
     id: str
     name: str
     licenseNumber: str
-    licenseCategory: str
+    licenseCategory: str = "Transport"
     licenseExpiry: str
     safetyScore: int
     status: str = "Available"
     region: str
-    contactNumber: str
+    contactNumber: str = ""
 
 class TripCreate(BaseModel):
     id: str
@@ -165,8 +165,8 @@ class TripCreate(BaseModel):
     cargoWeightKg: int
     vehicleId: str
     driverId: str
-    status: str = "Dispatched"
-    departureDate: str
+    status: str = "Draft"
+    departureDate: Optional[str] = None
     eta: Optional[str] = None
     region: str
 
@@ -297,7 +297,7 @@ def get_trips():
     try:
         conn = get_db_conn()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute("SELECT id, origin, destination, cargo_weight_kg, vehicle_id, driver_id, status, departure_date, eta, region, final_odometer, fuel_consumed FROM trips ORDER BY departure_date DESC")
+        cursor.execute("SELECT id, origin, destination, cargo_weight_kg, vehicle_id, driver_id, status, departure_date, eta, region, final_odometer, fuel_consumed FROM trips ORDER BY COALESCE(departure_date, NOW()) DESC")
         rows = cursor.fetchall()
         
         trips = []
@@ -337,9 +337,10 @@ def dispatch_trip(payload: TripCreate):
             (payload.id, payload.origin, payload.destination, payload.cargoWeightKg, payload.vehicleId, payload.driverId, payload.status, payload.departureDate, payload.eta, payload.region)
         )
         
-        # 2. Update Vehicle and Driver Status to 'On Trip'
-        cursor.execute("UPDATE vehicles SET status = 'On Trip' WHERE id = %s", (payload.vehicleId,))
-        cursor.execute("UPDATE drivers SET status = 'On Trip' WHERE id = %s", (payload.driverId,))
+        # 2. Only active dispatched trips should lock the vehicle and driver.
+        if payload.status == "Dispatched":
+            cursor.execute("UPDATE vehicles SET status = 'On Trip' WHERE id = %s", (payload.vehicleId,))
+            cursor.execute("UPDATE drivers SET status = 'On Trip' WHERE id = %s", (payload.driverId,))
         
         cursor.close()
         conn.close()
@@ -362,8 +363,16 @@ def update_trip_status(id: str, status: str = Body(..., embed=True)):
             
         vehicle_id, driver_id = trip
         
-        # Update trip status
-        cursor.execute("UPDATE trips SET status = %s WHERE id = %s", (status, id))
+        # Update trip status and start time when a draft becomes dispatched
+        if status == "Dispatched":
+            cursor.execute(
+                "UPDATE trips SET status = %s, departure_date = COALESCE(departure_date, NOW()) WHERE id = %s",
+                (status, id),
+            )
+            cursor.execute("UPDATE vehicles SET status = 'On Trip' WHERE id = %s", (vehicle_id,))
+            cursor.execute("UPDATE drivers SET status = 'On Trip' WHERE id = %s", (driver_id,))
+        else:
+            cursor.execute("UPDATE trips SET status = %s WHERE id = %s", (status, id))
         
         # Release vehicle & driver if trip is Completed or Cancelled
         if status in ["Completed", "Cancelled"]:
@@ -586,10 +595,8 @@ def update_settings(payload: Dict[str, Any]):
         if row:
             current = row[0]
             current.update(payload)
-            import json
             cursor.execute("UPDATE system_settings SET value = %s WHERE key = 'depot_settings'", (json.dumps(current),))
         else:
-            import json
             cursor.execute("INSERT INTO system_settings (key, value) VALUES ('depot_settings', %s)", (json.dumps(payload),))
             
         cursor.close()
@@ -621,7 +628,6 @@ def update_rbac_matrix(payload: Dict[str, Any]):
         cursor = conn.cursor()
         
         # Full payload replacement for RBAC config
-        import json
         cursor.execute("UPDATE system_settings SET value = %s WHERE key = 'rbac_matrix'", (json.dumps(payload),))
         
         cursor.close()

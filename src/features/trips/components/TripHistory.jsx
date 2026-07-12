@@ -3,7 +3,7 @@ import { useTransitData } from "../../../app/transit-data";
 import { Card } from "../../../components/ui/card";
 import { StatusChip } from "../../../components/ui/status-chip";
 import { TableShell } from "../../../components/ui/table-shell";
-import { formatNumber } from "../../../lib/utils";
+import { formatCurrency } from "../../../lib/utils";
 import { useDemoLoading } from "../../../hooks/use-demo-loading";
 
 export function TripHistory() {
@@ -18,9 +18,12 @@ export function TripHistory() {
     driver: drivers.find((item) => item.id === trip.driverId),
   }));
 
-  const completedToday = tripRows.filter(t => t.status === "Completed" && t.departureDate.startsWith(new Date().toISOString().split("T")[0])).length;
-  const completedTotal = tripRows.filter(t => t.status === "Completed").length;
-  const cancelledTotal = tripRows.filter(t => t.status === "Cancelled").length;
+  const today = new Date().toISOString().split("T")[0];
+  const completedToday = tripRows.filter(
+    (trip) => trip.status === "Completed" && trip.departureDate?.startsWith(today),
+  ).length;
+  const completedTotal = tripRows.filter((trip) => trip.status === "Completed").length;
+  const cancelledTotal = tripRows.filter((trip) => trip.status === "Cancelled").length;
 
   return (
     <div className="space-y-6">
@@ -72,7 +75,7 @@ export function TripHistory() {
               </td>
               <td className="px-4 py-4 text-[var(--text)]">{trip.driver?.name}</td>
               <td className="px-4 py-4 text-right font-mono text-[var(--text)]">
-                ₹{formatNumber(calculateOperationalCost(trip.id))}
+                {formatCurrency(calculateOperationalCost(trip.id))}
               </td>
               <td className="px-4 py-4 text-right">
                 <StatusChip status={trip.status} />

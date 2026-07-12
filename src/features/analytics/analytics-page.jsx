@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Download, ShieldAlert } from "lucide-react";
 import { useTransitData } from "../../app/transit-data";
 import { Button } from "../../components/ui/button";
@@ -32,8 +32,7 @@ import {
 } from "./insight-tables";
 
 const roleVisibility = {
-  "Operations Lead": "all",
-  "Fleet Manager": "fleet",
+  "Fleet Manager": "all",
   "Dispatcher": "trips",
   "Safety Officer": "safety",
   "Financial Analyst": "finance",
@@ -44,7 +43,7 @@ export function AnalyticsPage() {
   const { session, rbacMatrix, vehicles, drivers, trips, maintenance, fuelLogs, expenses } = useTransitData();
   const [filters, setFilters] = useState({});
 
-  const activeRole = session?.role || "Operations Lead";
+  const activeRole = session?.role || "Fleet Manager";
   const permission = rbacMatrix[activeRole]?.analytics || "none";
   const viewMode = roleVisibility[activeRole] || "all";
 
@@ -129,7 +128,7 @@ export function AnalyticsPage() {
     );
   }
 
-  const isLoading = loading;
+  const isLoading = loading || (vehicles.length === 0 && drivers.length === 0);
 
   return (
     <div className="space-y-6">

@@ -3,12 +3,13 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Command, Truck, UserSquare2, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTransitData } from "../../app/transit-data";
+import { ROUTE_PERMISSION_KEYS, isLiveTripStatus } from "../../lib/rbac";
 import { Input } from "../ui/input";
 import { StatusChip } from "../ui/status-chip";
 
 export function CommandPalette({ open, onOpenChange }) {
   const navigate = useNavigate();
-  const { vehicles, drivers, trips } = useTransitData();
+  const { vehicles, drivers, trips, canAccess } = useTransitData();
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -54,7 +55,7 @@ export function CommandPalette({ open, onOpenChange }) {
       icon: ShieldCheck,
       status: item.status,
     })),
-  ];
+  ].filter((item) => canAccess(ROUTE_PERMISSION_KEYS[item.route]));
   const results = !value
     ? [
         ...pool.filter((item) => item.route === "/fleet").slice(0, 3),
@@ -82,7 +83,7 @@ export function CommandPalette({ open, onOpenChange }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-slate-950/60"
+            className="app-overlay fixed inset-0 z-50"
             onClick={handleClose}
           />
           <motion.div
@@ -134,7 +135,7 @@ export function CommandPalette({ open, onOpenChange }) {
                         </div>
                         <StatusChip
                           status={item.status}
-                          pulsing={item.status === "On Trip" || item.status === "Dispatched"}
+                          pulsing={item.status === "On Trip" || isLiveTripStatus(item.status)}
                         />
                       </button>
                     );

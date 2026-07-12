@@ -7,6 +7,7 @@ import {
   YAxis,
 } from "recharts";
 import { Card } from "../../components/ui/card";
+import { formatCurrency } from "../../lib/utils";
 import { ChartTooltip } from "./chart-tooltip";
 
 const kpiCards = [
@@ -25,7 +26,7 @@ const kpiCards = [
 
 function formatValue(card, value) {
   if (card.currency) {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
+    return formatCurrency(value);
   }
   if (card.suffix) return `${value}${card.suffix}`;
   if (typeof value === "number" && value % 1 !== 0) return `${value}x`;

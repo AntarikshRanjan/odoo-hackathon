@@ -498,10 +498,20 @@ export function useAnalytics(filters = {}) {
       const vehicle = vehicles.find((v) => v.id === t.vehicleId);
       const driver = drivers.find((d) => d.id === t.driverId);
       const vFuel = ffl.filter((f) => f.vehicleId === t.vehicleId);
-      const fuelUsed = t.fuelConsumed || vFuel.reduce((s, f) => s + (f.liters || 0), 0);
+      const fuelUsed =
+        t.fuelConsumed ||
+        t.fuelUsedLiters ||
+        vFuel.reduce((s, f) => s + (f.liters || 0), 0);
       const vExpenses = fe.filter((e) => e.tripId === t.id).reduce((s, e) => s + (e.amount || 0), 0);
-      const plannedDistance = t.finalOdometer ? Math.abs(t.finalOdometer - (vehicle?.odometerKm || 0)) : null;
-      const actualDistance = t.finalOdometer && t.departureDate ? Math.abs(t.finalOdometer - (vFuel[0]?.odometer || vehicle?.odometerKm || 0)) : null;
+      const finalOdometer = t.finalOdometer || t.finalOdometerKm || 0;
+      const plannedDistance =
+        t.plannedDistance || (finalOdometer ? Math.abs(finalOdometer - (vehicle?.odometerKm || 0)) : null);
+      const actualDistance =
+        t.actualDistance ||
+        t.actualDistanceKm ||
+        (finalOdometer && t.departureDate
+          ? Math.abs(finalOdometer - (vFuel[0]?.odometer || vehicle?.odometerKm || 0))
+          : null);
 
       return {
         id: t.id,

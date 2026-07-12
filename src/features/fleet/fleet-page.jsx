@@ -16,7 +16,7 @@ const pageSize = 5;
 
 export function FleetPage() {
   const loading = useDemoLoading("fleet");
-  const { vehicles, maintenance, addVehicle, pushToast } = useTransitData();
+  const { vehicles, maintenance, addVehicle, pushToast, getAccessLevel } = useTransitData();
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [typeFilter, setTypeFilter] = useState("All");
@@ -34,6 +34,8 @@ export function FleetPage() {
     fuelType: "Diesel",
     notes: "",
   });
+  const permission = getAccessLevel("fleet");
+  const canManage = permission === "full";
 
   const types = ["All", ...new Set(vehicles.map((item) => item.type))];
 
@@ -87,10 +89,12 @@ export function FleetPage() {
             Searchable dispatch inventory with quick detail and service history.
           </p>
         </div>
-        <Button type="button" onClick={() => setAddOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Add Vehicle
-        </Button>
+        {canManage && (
+          <Button type="button" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Add Vehicle
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -147,9 +151,11 @@ export function FleetPage() {
           emptyTitle="No vehicles yet"
           emptyDescription="Add your first one to start dispatching."
           emptyAction={
-            <Button type="button" onClick={() => setAddOpen(true)}>
-              Add Vehicle
-            </Button>
+            canManage ? (
+              <Button type="button" onClick={() => setAddOpen(true)}>
+                Add Vehicle
+              </Button>
+            ) : null
           }
           renderRow={(vehicle) => (
             <tr
@@ -176,20 +182,29 @@ export function FleetPage() {
               </td>
               <td className="px-4 py-4 text-right">
                 <ActionMenu
-                  items={[
-                    {
-                      label: "View details",
-                      onClick: () => setDetailVehicle(vehicle),
-                    },
-                    {
-                      label: "Flag for review",
-                      onClick: () =>
-                        pushToast({
-                          title: "Vehicle flagged.",
-                          description: `${vehicle.regNumber} added to the review queue.`,
-                        }),
-                    },
-                  ]}
+                  items={
+                    canManage
+                      ? [
+                          {
+                            label: "View details",
+                            onClick: () => setDetailVehicle(vehicle),
+                          },
+                          {
+                            label: "Flag for review",
+                            onClick: () =>
+                              pushToast({
+                                title: "Vehicle flagged.",
+                                description: `${vehicle.regNumber} added to the review queue.`,
+                              }),
+                          },
+                        ]
+                      : [
+                          {
+                            label: "View details",
+                            onClick: () => setDetailVehicle(vehicle),
+                          },
+                        ]
+                  }
                 />
               </td>
             </tr>

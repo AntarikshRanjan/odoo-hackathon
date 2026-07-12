@@ -29,9 +29,9 @@ export function MaintenancePage() {
 
   const availableVehicles = vehicles.filter((vehicle) => vehicle.status !== "Retired");
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
-    const result = logMaintenance({
+    const result = await logMaintenance({
       vehicleId: form.vehicleId,
       type: form.type,
       cost: Number(form.cost),

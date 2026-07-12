@@ -40,7 +40,7 @@ CREATE TABLE users (
     name VARCHAR(100) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('Operations Lead', 'Fleet Manager', 'Dispatcher', 'Safety Officer', 'Financial Analyst')),
+    role VARCHAR(50) NOT NULL CHECK (role IN ('Fleet Manager', 'Dispatcher', 'Safety Officer', 'Financial Analyst')),
     attempts INT DEFAULT 0 CHECK (attempts >= 0),
     is_locked BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -92,7 +92,7 @@ CREATE TABLE trips (
     vehicle_id VARCHAR(50) NOT NULL REFERENCES vehicles(id) ON DELETE RESTRICT,
     driver_id VARCHAR(50) NOT NULL REFERENCES drivers(id) ON DELETE RESTRICT,
     status VARCHAR(20) NOT NULL DEFAULT 'Draft' CHECK (status IN ('Draft', 'Dispatched', 'Completed', 'Cancelled')),
-    departure_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    departure_date TIMESTAMP WITH TIME ZONE,
     eta TIMESTAMP WITH TIME ZONE,
     region VARCHAR(50) NOT NULL,
     final_odometer INT CHECK (final_odometer >= 0),
@@ -147,7 +147,6 @@ CREATE INDEX idx_expenses_vehicle ON expenses(vehicle_id);
 SEED_SQL = """
 -- 1. Seed Users
 INSERT INTO users (name, email, password_hash, role) VALUES
-('Ava Singh', 'ops@transitops.io', 'pbkdf2:sha256:260000$demo123', 'Operations Lead'),
 ('Fleet Manager User', 'manager@transitops.io', 'pbkdf2:sha256:260000$demo123', 'Fleet Manager'),
 ('Dispatcher User', 'dispatch@transitops.io', 'pbkdf2:sha256:260000$demo123', 'Dispatcher'),
 ('Safety Officer User', 'safety@transitops.io', 'pbkdf2:sha256:260000$demo123', 'Safety Officer'),
@@ -176,6 +175,7 @@ INSERT INTO drivers (id, name, license_number, license_category, license_expiry,
 
 -- 4. Seed Trips
 INSERT INTO trips (id, origin, destination, cargo_weight_kg, vehicle_id, driver_id, status, departure_date, eta, region, final_odometer, fuel_consumed) VALUES
+('TR-2026-0104', 'Nashik Spur', 'Mumbai Hub', 480, 'VH-004', 'DR-004', 'Draft', NULL, '2026-07-12 18:15:00+05:30', 'West', NULL, NULL),
 ('TR-2026-0102', 'Mumbai Hub', 'Pune Central', 420, 'VH-002', 'DR-002', 'Dispatched', '2026-07-12 08:10:00+05:30', '2026-07-12 16:30:00+05:30', 'West', NULL, NULL),
 ('TR-2026-0103', 'Lucknow Yard', 'Kanpur Dock', 1380, 'VH-008', 'DR-007', 'Dispatched', '2026-07-12 06:30:00+05:30', '2026-07-12 14:20:00+05:30', 'North', NULL, NULL),
 ('TR-2026-0098', 'Bengaluru South', 'Mysuru Node', 300, 'VH-007', 'DR-006', 'Completed', '2026-07-10 09:00:00+05:30', '2026-07-10 13:40:00+05:30', 'South', 28355, 4.2),

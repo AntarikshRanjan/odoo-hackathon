@@ -2,17 +2,7 @@ import { Command, LogOut, Menu, Moon, Search, Sun } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useTransitData } from "../../app/transit-data";
 import { Button } from "../ui/button";
-
-const routeTitles = {
-  "/dashboard": "Dashboard",
-  "/fleet": "Fleet",
-  "/drivers": "Drivers",
-  "/trips": "Trips",
-  "/maintenance": "Maintenance",
-  "/expenses": "Fuel & Expenses",
-  "/analytics": "Analytics & Reports",
-  "/settings": "Settings",
-};
+import { ROUTE_TITLES } from "../../lib/rbac";
 
 export function Topbar({ onOpenMobileMenu, onOpenCommandPalette }) {
   const location = useLocation();
@@ -37,7 +27,7 @@ export function Topbar({ onOpenMobileMenu, onOpenCommandPalette }) {
               TransitOps
             </p>
             <h1 className="text-[28px] font-bold text-[var(--text)]">
-              {routeTitles[location.pathname] || "Control Tower"}
+              {ROUTE_TITLES[location.pathname] || "Control Tower"}
             </h1>
           </div>
         </div>

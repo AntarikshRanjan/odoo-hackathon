@@ -5,6 +5,7 @@ const statusMarks = {
   Completed: "○",
   Closed: "○",
   "On Trip": "●",
+  Draft: "◐",
   Dispatched: "●",
   "In Shop": "◐",
   Open: "◐",

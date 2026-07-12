@@ -16,7 +16,7 @@ const pageSize = 6;
 
 export function DriversPage() {
   const loading = useDemoLoading("drivers");
-  const { drivers, addDriver, pushToast } = useTransitData();
+  const { drivers, addDriver, pushToast, getAccessLevel } = useTransitData();
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [statusFilter, setStatusFilter] = useState("All");
@@ -30,6 +30,8 @@ export function DriversPage() {
     safetyScore: 90,
     region: "West",
   });
+  const permission = getAccessLevel("drivers");
+  const canManage = permission === "full";
 
   const filtered = drivers.filter((driver) => {
     const matchesSearch =
@@ -73,10 +75,12 @@ export function DriversPage() {
             License visibility, safety performance, and dispatch eligibility in one table.
           </p>
         </div>
-        <Button type="button" onClick={() => setAddOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Add Driver
-        </Button>
+        {canManage && (
+          <Button type="button" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Add Driver
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -118,9 +122,11 @@ export function DriversPage() {
           emptyTitle="No drivers yet"
           emptyDescription="Add your first driver to open the dispatch pool."
           emptyAction={
-            <Button type="button" onClick={() => setAddOpen(true)}>
-              Add Driver
-            </Button>
+            canManage ? (
+              <Button type="button" onClick={() => setAddOpen(true)}>
+                Add Driver
+              </Button>
+            ) : null
           }
           renderRow={(driver) => {
             const daysLeft =
@@ -149,23 +155,32 @@ export function DriversPage() {
                   />
                 </td>
                 <td className="px-4 py-4 text-right">
-                  <ActionMenu
-                    items={[
-                      {
-                        label: "View details",
-                        onClick: () => setDetailDriver(driver),
-                      },
-                      {
-                        label: "Flag follow-up",
-                        onClick: () =>
-                          pushToast({
-                            title: "Driver flagged.",
-                            description: `${driver.name} added to the compliance queue.`,
-                          }),
-                      },
-                    ]}
-                  />
-                </td>
+                <ActionMenu
+                  items={
+                    canManage
+                      ? [
+                          {
+                            label: "View details",
+                            onClick: () => setDetailDriver(driver),
+                          },
+                          {
+                            label: "Flag follow-up",
+                            onClick: () =>
+                              pushToast({
+                                title: "Driver flagged.",
+                                description: `${driver.name} added to the compliance queue.`,
+                              }),
+                          },
+                        ]
+                      : [
+                          {
+                            label: "View details",
+                            onClick: () => setDetailDriver(driver),
+                          },
+                        ]
+                  }
+                />
+              </td>
               </tr>
             );
           }}

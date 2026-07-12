@@ -17,12 +17,12 @@ import { cn } from "../../lib/utils";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: Gauge },
-  { to: "/fleet", label: "Fleet", icon: Truck },
-  { to: "/drivers", label: "Drivers", icon: UserSquare2 },
-  { to: "/trips", label: "Trips", icon: ShieldCheck },
-  { to: "/maintenance", label: "Maintenance", icon: Wrench },
-  { to: "/expenses", label: "Fuel & Expenses", icon: Fuel },
-  { to: "/analytics", label: "Analytics", icon: BarChart3 },
+  { to: "/fleet", label: "Fleet", icon: Truck, permissionKey: "fleet" },
+  { to: "/drivers", label: "Drivers", icon: UserSquare2, permissionKey: "drivers" },
+  { to: "/trips", label: "Trips", icon: ShieldCheck, permissionKey: "trips" },
+  { to: "/maintenance", label: "Maintenance", icon: Wrench, permissionKey: "maintenance" },
+  { to: "/expenses", label: "Fuel & Expenses", icon: Fuel, permissionKey: "fuelExpenses" },
+  { to: "/analytics", label: "Analytics", icon: BarChart3, permissionKey: "analytics" },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -32,16 +32,18 @@ export function Sidebar({ mobileOpen, onMobileClose }) {
     setSidebarCollapsed,
     stats,
     maintenance,
+    canAccess,
   } = useTransitData();
 
   const widthClass = sidebarCollapsed ? "w-[64px]" : "w-[240px]";
   const openMaintenance = maintenance.filter((item) => item.status === "Open").length;
+  const visibleNavItems = navItems.filter((item) => canAccess(item.permissionKey));
 
   return (
     <>
       <div
         className={cn(
-          "fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-sm lg:hidden",
+          "app-overlay fixed inset-0 z-30 lg:hidden",
           mobileOpen ? "block" : "hidden",
         )}
         onClick={onMobileClose}
@@ -66,7 +68,7 @@ export function Sidebar({ mobileOpen, onMobileClose }) {
         </div>
 
         <nav className="flex-1 space-y-2 px-3 py-4">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const pulse =
               item.to === "/trips"

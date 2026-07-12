@@ -140,6 +140,11 @@
     @apply mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8;
   }
 
+  .app-overlay {
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(6px);
+  }
+
   .status-mark {
     @apply inline-flex items-center gap-2 font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-[var(--text)];
   }
@@ -155,8 +160,9 @@
   }
 
   .modal-panel {
-    background: var(--surface-2);
+    background: var(--surface);
     border: 1px solid var(--border);
+    box-shadow: 0 28px 90px rgba(0, 0, 0, 0.38);
   }
 
   .mono-display {
@@ -187,6 +193,20 @@
 
   .notice-line {
     @apply flex items-start gap-2 text-[12px] text-[var(--text-2)];
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+    -webkit-text-fill-color: var(--text);
+    caret-color: var(--text);
   }
 }
 

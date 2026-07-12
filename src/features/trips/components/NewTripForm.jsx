@@ -1,21 +1,24 @@
 import { useState } from "react";
+import { useTransitData } from "../../../app/transit-data";
 import { Button } from "../../../components/ui/button";
 import { Card } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
 import { ValidationSummary } from "./ValidationSummary";
-import { useTransitData } from "../../../app/transit-data";
 
 export function NewTripForm({ onSuccess }) {
   const {
+    createTrip,
     getAvailableVehicles,
     getAvailableDrivers,
     validateTrip,
     dispatchTrip,
+    canManage,
   } = useTransitData();
 
   const dispatchVehicles = getAvailableVehicles();
   const dispatchDrivers = getAvailableDrivers();
+  const canEditTrips = canManage("trips");
 
   const [error, setError] = useState("");
   const [form, setForm] = useState({
@@ -35,26 +38,70 @@ export function NewTripForm({ onSuccess }) {
   const validation = validateTrip(form);
   const { capacityExceeded, isValid } = validation;
 
+  function resetForm() {
+    setForm({
+      origin: "",
+      destination: "",
+      cargoWeightKg: 0,
+      plannedDistance: 0,
+      vehicleId: "",
+      driverId: "",
+      departureDate: "",
+      eta: "",
+      priority: "Normal",
+      notes: "",
+      region: "West",
+    });
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
-    if (!isValid) return;
+    if (!canEditTrips || !isValid) return;
 
-    const payload = {
+    const result = await dispatchTrip({
       ...form,
       cargoWeightKg: Number(form.cargoWeightKg),
-    };
-    
-    try {
-      await dispatchTrip(payload);
-      setForm({
-        origin: "", destination: "", cargoWeightKg: 0, plannedDistance: 0,
-        vehicleId: "", driverId: "", departureDate: "", eta: "", priority: "Normal",
-        notes: "", region: "West",
-      });
-      if (onSuccess) onSuccess();
-    } catch (err) {
-      setError("Failed to dispatch trip.");
+      plannedDistance: Number(form.plannedDistance),
+    });
+
+    if (!result?.ok) {
+      setError(result?.message || "Failed to dispatch trip.");
+      return;
     }
+
+    setError("");
+    resetForm();
+    onSuccess?.();
+  }
+
+  async function handleSaveDraft() {
+    if (!canEditTrips) return;
+
+    const result = await createTrip({
+      ...form,
+      cargoWeightKg: Number(form.cargoWeightKg),
+      plannedDistance: Number(form.plannedDistance),
+      status: "Draft",
+    });
+
+    if (!result?.ok) {
+      setError(result?.message || "Failed to save draft trip.");
+      return;
+    }
+
+    setError("");
+    resetForm();
+    onSuccess?.();
+  }
+
+  if (!canEditTrips) {
+    return (
+      <Card className="p-6">
+        <p className="text-[13px] text-[var(--text-2)]">
+          Your current role can review trips, but only the dispatcher can create or dispatch them.
+        </p>
+      </Card>
+    );
   }
 
   return (
@@ -83,8 +130,10 @@ export function NewTripForm({ onSuccess }) {
                 onChange={(e) => setForm({ ...form, vehicleId: e.target.value })}
               >
                 <option value="">Select an available vehicle</option>
-                {dispatchVehicles.map((v) => (
-                  <option key={v.id} value={v.id}>{v.regNumber} · {v.model}</option>
+                {dispatchVehicles.map((vehicle) => (
+                  <option key={vehicle.id} value={vehicle.id}>
+                    {vehicle.regNumber} · {vehicle.model}
+                  </option>
                 ))}
               </Select>
             </Field>
@@ -95,8 +144,10 @@ export function NewTripForm({ onSuccess }) {
                 onChange={(e) => setForm({ ...form, driverId: e.target.value })}
               >
                 <option value="">Select an available driver</option>
-                {dispatchDrivers.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name} · {d.licenseNumber}</option>
+                {dispatchDrivers.map((driver) => (
+                  <option key={driver.id} value={driver.id}>
+                    {driver.name} · {driver.licenseNumber}
+                  </option>
                 ))}
               </Select>
             </Field>
@@ -157,6 +208,7 @@ export function NewTripForm({ onSuccess }) {
               </Select>
             </Field>
           </div>
+
           <Field label="Notes">
             <Input
               value={form.notes}
@@ -164,12 +216,16 @@ export function NewTripForm({ onSuccess }) {
               placeholder="Special instructions..."
             />
           </Field>
-          
+
           {error && <div className="text-red-500 text-[13px]">{error}</div>}
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="ghost">Save Draft</Button>
-            <Button type="submit" disabled={!isValid}>Dispatch Trip</Button>
+            <Button type="button" variant="ghost" onClick={handleSaveDraft}>
+              Save Draft
+            </Button>
+            <Button type="submit" disabled={!isValid}>
+              Dispatch Trip
+            </Button>
           </div>
         </form>
       </Card>

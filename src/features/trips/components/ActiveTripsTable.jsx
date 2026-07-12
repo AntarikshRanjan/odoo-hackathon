@@ -5,16 +5,17 @@ import { ActionMenu } from "../../../components/ui/action-menu";
 import { Card } from "../../../components/ui/card";
 import { StatusChip } from "../../../components/ui/status-chip";
 import { TableShell } from "../../../components/ui/table-shell";
-import { formatNumber } from "../../../lib/utils";
 import { useDemoLoading } from "../../../hooks/use-demo-loading";
+import { formatNumber } from "../../../lib/utils";
 import { CompleteTripModal } from "./CompleteTripModal";
 
 export function ActiveTripsTable() {
   const loading = useDemoLoading("active-trips");
-  const { trips, vehicles, drivers, cancelTrip } = useTransitData();
+  const { trips, vehicles, drivers, cancelTrip, updateTripStatus, canManage } = useTransitData();
   const [completeTripObj, setCompleteTripObj] = useState(null);
+  const canEditTrips = canManage("trips");
 
-  const activeTrips = trips.filter((t) => ["Dispatched", "Delayed", "Draft"].includes(t.status));
+  const activeTrips = trips.filter((trip) => ["Dispatched", "Draft"].includes(trip.status));
 
   const tripRows = activeTrips.map((trip) => ({
     ...trip,
@@ -22,10 +23,10 @@ export function ActiveTripsTable() {
     driver: drivers.find((item) => item.id === trip.driverId),
   }));
 
-  const activeCount = tripRows.filter(t => t.status === "Dispatched").length;
-  const delayedCount = tripRows.filter(t => t.status === "Delayed").length;
-  const vehiclesOnTrip = vehicles.filter(v => v.status === "On Trip").length;
-  const driversOnDuty = drivers.filter(d => d.status === "On Trip").length;
+  const activeCount = tripRows.filter((trip) => trip.status === "Dispatched").length;
+  const pendingCount = tripRows.filter((trip) => trip.status === "Draft").length;
+  const vehiclesOnTrip = vehicles.filter((vehicle) => vehicle.status === "On Trip").length;
+  const driversOnDuty = drivers.filter((driver) => driver.status === "On Trip").length;
 
   return (
     <div className="space-y-6">
@@ -35,8 +36,8 @@ export function ActiveTripsTable() {
           <p className="mt-2 text-2xl font-bold text-[var(--text)]">{activeCount}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-[12px] uppercase tracking-[0.08em] text-[var(--muted)]">Delayed</p>
-          <p className="mt-2 text-2xl font-bold text-yellow-500">{delayedCount}</p>
+          <p className="text-[12px] uppercase tracking-[0.08em] text-[var(--muted)]">Pending Trips</p>
+          <p className="mt-2 text-2xl font-bold text-[var(--text)]">{pendingCount}</p>
         </Card>
         <Card className="p-4">
           <p className="text-[12px] uppercase tracking-[0.08em] text-[var(--muted)]">Vehicles On Trip</p>
@@ -81,32 +82,45 @@ export function ActiveTripsTable() {
               </td>
               <td className="px-4 py-4 text-[var(--text)]">{trip.driver?.name}</td>
               <td className="px-4 py-4 text-right">
-                <StatusChip
-                  status={trip.status}
-                  pulsing={trip.status === "Dispatched"}
-                />
+                <StatusChip status={trip.status} pulsing={trip.status === "Dispatched"} />
               </td>
               <td className="px-4 py-4 text-right">
-                <ActionMenu
-                  items={[
-                    {
-                      label: "View / Edit",
-                      onClick: () => {},
-                    },
-                    {
-                      label: "Complete trip",
-                      onClick: () => setCompleteTripObj(trip),
-                    },
-                    {
-                      label: "Cancel trip",
-                      onClick: async () => {
-                        if (confirm("Are you sure you want to cancel this trip?")) {
-                          await cancelTrip(trip.id);
-                        }
+                {canEditTrips ? (
+                  <ActionMenu
+                    items={[
+                      ...(trip.status === "Draft"
+                        ? [
+                            {
+                              label: "Dispatch trip",
+                              onClick: async () => {
+                                await updateTripStatus(trip.id, "Dispatched");
+                              },
+                            },
+                          ]
+                        : []),
+                      ...(trip.status === "Dispatched"
+                        ? [
+                            {
+                              label: "Complete trip",
+                              onClick: () => setCompleteTripObj(trip),
+                            },
+                          ]
+                        : []),
+                      {
+                        label: "Cancel trip",
+                        onClick: async () => {
+                          if (window.confirm("Are you sure you want to cancel this trip?")) {
+                            await cancelTrip(trip.id);
+                          }
+                        },
                       },
-                    },
-                  ]}
-                />
+                    ]}
+                  />
+                ) : (
+                  <span className="text-[12px] font-medium text-[var(--muted)]">
+                    Read Only
+                  </span>
+                )}
               </td>
             </tr>
           )}
@@ -114,10 +128,10 @@ export function ActiveTripsTable() {
       </Card>
 
       {completeTripObj && (
-        <CompleteTripModal 
-          trip={completeTripObj} 
-          isOpen={true} 
-          onClose={() => setCompleteTripObj(null)} 
+        <CompleteTripModal
+          trip={completeTripObj}
+          isOpen={true}
+          onClose={() => setCompleteTripObj(null)}
         />
       )}
     </div>
