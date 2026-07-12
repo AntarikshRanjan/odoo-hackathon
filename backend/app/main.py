@@ -106,6 +106,33 @@ def startup_db_check():
     except Exception as e:
         print(f"Startup database check failed: {e}")
 
+# Auth endpoint
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+@app.post("/api/auth/login")
+def login_user(payload: LoginRequest):
+    try:
+        conn = get_db_conn()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT id, name, email, role FROM users WHERE email = %s", (payload.email,))
+        user = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        if user:
+            return {
+                "id": user["id"],
+                "name": user["name"],
+                "email": user["email"],
+                "role": user["role"],
+            }
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Pydantic Schemas
 class VehicleCreate(BaseModel):
     id: str

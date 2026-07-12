@@ -21,10 +21,10 @@ export function LoginPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     setSubmitting(true);
-    const result = login(form);
+    const result = await login(form);
     setSubmitting(false);
 
     if (!result.ok) {

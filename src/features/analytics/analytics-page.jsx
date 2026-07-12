@@ -129,7 +129,7 @@ export function AnalyticsPage() {
     );
   }
 
-  const isLoading = loading || (vehicles.length === 0 && drivers.length === 0);
+  const isLoading = loading;
 
   return (
     <div className="space-y-6">

@@ -4,6 +4,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { formatCurrency } from "../lib/utils";
 const expenseTrend = [
   { name: "Jan", cost: 12000 },
   { name: "Feb", cost: 14500 },
@@ -58,9 +59,19 @@ export function TransitDataProvider({ children }) {
 
   const API_BASE = "http://localhost:8000/api";
 
-  // Fetch initial data from PostgreSQL backend on mount
+  // Fetch initial data from PostgreSQL backend on mount — only for demo user (Ava Singh, id=1)
   useEffect(() => {
     async function loadBackendData() {
+      if (!session || session.id !== 1) {
+        // Non-demo users start with empty data
+        setVehicles([]);
+        setDrivers([]);
+        setTrips([]);
+        setMaintenance([]);
+        setFuelLogs([]);
+        setExpenses([]);
+        return;
+      }
       try {
         const [vehiclesRes, driversRes, tripsRes, maintRes, fuelRes, expRes, settingsRes, rbacRes] = await Promise.all([
           fetch(`${API_BASE}/vehicles`).then((r) => r.ok ? r.json() : Promise.reject()),
@@ -81,11 +92,11 @@ export function TransitDataProvider({ children }) {
         setSettingsState(settingsRes);
         setRbacMatrixState(rbacRes);
       } catch (err) {
-        console.warn("Backend not running or failed; falling back to mock data.", err);
+        console.warn("Backend not running or failed; falling back to empty data.", err);
       }
     }
     loadBackendData();
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     window.localStorage.setItem("transitops-settings", JSON.stringify(settings));
@@ -124,23 +135,45 @@ export function TransitDataProvider({ children }) {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }
 
-  function login({ email, password, remember }) {
+  async function login({ email, password, remember }) {
     if (!email || !password) {
       return { ok: false, message: "Enter your email and password to continue." };
     }
 
-    setSession({
-      name: "Ava Singh",
-      role: "Operations Lead",
-      email,
-      remember,
-    });
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    return { ok: true };
+      if (!res.ok) {
+        return { ok: false, message: "Invalid email or password." };
+      }
+
+      const user = await res.json();
+      setSession({
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        email: user.email,
+        remember,
+      });
+
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, message: "Cannot reach the server. Try again." };
+    }
   }
 
   function logout() {
     setSession(null);
+    setVehicles([]);
+    setDrivers([]);
+    setTrips([]);
+    setMaintenance([]);
+    setFuelLogs([]);
+    setExpenses([]);
     pushToast({
       title: "Signed out.",
       description: "Your control tower session is closed.",
